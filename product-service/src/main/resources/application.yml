@@ -5,35 +5,35 @@ spring:
   application:
     name: products-service
 
-  # Jackson: configuración del serializador/deserializador JSON
+  # Jackson: configuraciï¿½n del serializador/deserializador JSON
   jackson:
     # Convierte camelCase Java ? snake_case JSON (ej: stockQuantity ? stock_quantity)
-    # Descomenta si tu API sigue la convención snake_case:
+    # Descomenta si tu API sigue la convenciï¿½n snake_case:
     # property-naming-strategy: SNAKE_CASE
 
     # Ignora propiedades desconocidas al deserializar (evita errores en versiones de API)
     deserialization:
       fail-on-unknown-properties: false
 
-# Actuator: qué endpoints exponer
+# Actuator: quï¿½ endpoints exponer
 management:
   endpoints:
     web:
       exposure:
         # health: para readiness/liveness probes (Kubernetes, Docker)
         # info: metadatos del servicio
-        # metrics: métricas para Prometheus/Grafana
+        # metrics: mï¿½tricas para Prometheus/Grafana
         include: health, info, metrics
   endpoint:
     health:
       # show-details: siempre muestra detalles del health check
-      # útil para saber si la DB, Redis, etc. están OK
+      # ï¿½til para saber si la DB, Redis, etc. esten OK
       show-details: always
 
 # Logging: nivel por paquete
 logging:
   level:
-    com.e_commerce.productservice: DEBUG   # Nuestro código en DEBUG para ver todo
+    com.e_commerce.productservice: DEBUG   # Nuestro codigo en DEBUG para ver todo
     org.springframework.web: INFO  # Spring Web en INFO (menos verboso
 
 

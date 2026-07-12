@@ -1,6 +1,7 @@
 package com.e_commerce.acountservice.Config;
 
 import com.e_commerce.acountservice.Repository.UserRepository;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

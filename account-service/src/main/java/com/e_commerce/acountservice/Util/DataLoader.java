@@ -15,7 +15,7 @@ public class DataLoader implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        log.info("Cargando Usuarios...");
+        //log.info("Cargando Usuarios...");
 
 
     }
