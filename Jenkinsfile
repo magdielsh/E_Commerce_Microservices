@@ -90,7 +90,7 @@ pipeline {
                     // Guarda el .jar como "artefacto" del build, así
                     // puedes descargarlo directamente desde la UI de
                     // Jenkins sin tener que ir a buscarlo a mano
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                    archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
                 }
             }
         }
