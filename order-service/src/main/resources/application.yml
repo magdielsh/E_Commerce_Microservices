@@ -1,0 +1,299 @@
+server:
+  port: 7198
+
+spring:
+  application:
+    name: order-service
+
+  cloud:
+    openfeign:
+      httpclient:
+        hc5:
+          enabled: true
+      circuitbreaker:
+        enabled: true
+        group:
+          enabled: true   # todos los métodos del cliente → un solo CB con su nombre
+    # -----------------------------------------------------------------------------
+    # Timeouts globales — críticos en microservicios
+    # ----------------------------------------------------------------------------
+      client:
+        config:
+          default: # aplica a todos los FeignClients
+            connectTimeout: 3000      # Tiempo máximo (ms) para establecer la conexión TCP al servidor
+            # Si products-service tarda más de 3s en aceptar la conexión → error
+            readTimeout: 5000          # Tiempo máximo (ms) esperando la RESPUESTA una vez conectado
+            # Si products-service conecta pero tarda más de 5s en responder → error
+            loggerLevel: BASIC         # Nivel de logging de Feign:
+            #   NONE    → sin logs (producción recomendado)
+            #   BASIC   → método, URL, status, tiempo (producción mínimo)
+            #   HEADERS → BASIC + headers de request/response
+            #   FULL    → HEADERS + body completo (dev/debugging)
+            # ⚠️  FULL puede exponer JWT y datos sensibles en logs → nunca en produccion
+
+          # Configuración ESPECÍFICA para products-service (sobreescribe default)
+          products-service:
+            connectTimeout: 2000    # más estricto para este servicio
+            readTimeout: 4000
+            loggerLevel: BASIC      # solo lo básico para este cliente
+
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    consumer:
+      group-id: order-service-consumer
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 5000
+      properties:
+        retry.backoff.ms: 1000
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        replication.factor: 3
+        min.insync.replicas: 2
+        delivery.timeout.ms: 120000
+        linger.ms: 20
+        compression.type: snappy
+
+  # ---------------------------------------------------------------------
+  # DATABASE CONFIGURATION (JPA/Hibernate)
+  # ---------------------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://localhost:5432/order_service_mc
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Maximum pool size
+      maximum-pool-size: 10
+      # Minimum idle connections
+      minimum-idle: 5
+      # Connection timeout (ms)
+      connection-timeout: 30000
+      # Idle timeout (ms)
+      idle-timeout: 600000
+      # Max lifetime (ms)
+      max-lifetime: 1800000
+      # Pool name for logging
+      pool-name: AccountServiceHikariPool
+
+  # ---------------------------------------------------------------------
+  # JPA/HIBERNATE CONFIGURATION
+  # ---------------------------------------------------------------------
+  jpa:
+    # Show SQL en logs (para desarrollo)
+    show-sql: true
+    # Hibernate ddl-auto:
+    # - none: No hace nada (usar con schema.sql)
+    # - validate: Valida esquema (production)
+    # - update: Actualiza esquema (dev)
+    # - create: Crea tablas (dev)
+    # - create-drop: Crea y borra (test)
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        # order_inserts: Mejora performance en batch
+        order_inserts: true
+        # order_updates: Mejora performance en batch
+        order_updates: true
+        # jdbc:batch_versioned_data: Soporta RETURNING
+        batch_versioned_data: true
+
+
+
+# -----------------------------------------------------------------------------
+# EUREKA SERVICE DISCOVERY
+# -----------------------------------------------------------------------------
+eureka:
+  client:
+    # Habilitar registro en Eureka
+    enabled: true
+    # URL del Eureka Server
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    # Registry fetch interval (seconds)
+    registry-fetch-interval-seconds: 30
+    # Instance preference
+    instance-info-replication-interval-seconds: 30
+  # Instance configuration
+  instance:
+    # Prefer IP address (vs hostname)
+    prefer-ip-address: true
+    # Instance ID en Eureka
+    instance-id: ${spring.application.name}:${server.port}
+    # Lease renewal interval (seconds)
+    lease-renewal-interval-in-seconds: 30
+    # Lease expiration duration (seconds)
+    lease-expiration-duration-in-seconds: 90
+
+# -----------------------------------------------------------------------------
+# ── Resilience4j: Circuit Breaker por instancia ──
+# -----------------------------------------------------------------------------
+resilience4j:
+  circuitbreaker:
+    circuitBreakerAspectOrder: 2
+    instances:
+      # El nombre debe coincidir EXACTAMENTE con 'name' del @FeignClient
+      products-service:
+
+        # Tipo de ventana deslizante:
+        #   COUNT_BASED  → evalúa las últimas N llamadas (más simple)
+        #   TIME_BASED   → evalúa llamadas en los últimos N segundos
+        slidingWindowType: COUNT_BASED
+
+        # Número de llamadas en la ventana deslizante a evaluar
+        slidingWindowSize: 10
+
+        # % de fallos para ABRIR el circuito (pasar a estado OPEN)
+        # Con slidingWindowSize=10 y 50%: si 5 de las últimas 10 fallan → OPEN
+        failureRateThreshold: 50
+
+        # Tiempo (ms) que el CB permanece en estado OPEN antes de intentar HALF-OPEN
+        # Durante este tiempo: todas las llamadas van al fallback SIN intentar el servicio
+        waitDurationInOpenState: 10000  # 10 segundos
+
+        # En estado HALF-OPEN: cuántas llamadas de prueba se dejan pasar
+        # Si todas tienen éxito → vuelve a CLOSED
+        # Si alguna falla → vuelve a OPEN
+        permittedNumberOfCallsInHalfOpenState: 3
+
+        # Mínimo de llamadas antes de que el CB empiece a calcular la tasa de fallos
+        # Evita que 1 fallo en las 2 primeras llamadas abra el circuito (50%)
+        minimumNumberOfCalls: 5
+
+        # ¿Pasar automáticamente de OPEN a HALF-OPEN cuando expira waitDuration?
+        # true: no espera más llamadas, pasa automáticamente
+        # false: espera hasta que llegue la próxima llamada
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+        # ── SLOW CALLS (llamadas lentas) ────────────────────────────────
+        # Resilience4j puede contar las llamadas "lentas" también como fallos.
+        # Una llamada que tarda más de slowCallDurationThreshold cuenta
+        # como fallo para la tasa si supera slowCallRateThreshold.
+        slowCallDurationThreshold: 3000  # ms
+        slowCallRateThreshold: 80        # % de llamadas lentas para abrir CB
+
+        # ── EXCEPCIONES ─────────────────────────────────────────────────
+        # Excepciones que el CB trata como FALLO (registra en la tasa).
+        # Por defecto: todas las excepciones son fallos.
+        # Puedes sobrescribir con recordExceptions para ser explícito:
+        recordExceptions:
+          - java.io.IOException
+          - feign.RetryableException
+          - java.util.concurrent.TimeoutException
+          - com.e_commerce.orderservice.Exceptions.OrderExceptions.ServiceException
+
+        # Excepciones que se registran como éxito (no como fallo)
+        # ProductNotFoundException (404) es del NEGOCIO, no del SISTEMA:
+        # el servicio responde correctamente, solo que el producto no existe.
+        # No debería contar como fallo del Circuit Breaker.
+        ignoreExceptions:
+          - com.e_commerce.orderservice.Exceptions.OrderExceptions.ProductNotFoundException
+          - com.e_commerce.orderservice.Exceptions.OrderExceptions.StockConflictException
+
+  # ── Retry: reintentos con backoff exponencial ──
+  retry:
+    retryAspectOrder: 1
+    instances:
+      products-service:
+        # Intentos TOTALES (el original + los reintentos).
+        # maxAttempts=3 → 1 intento original + 2 reintentos.
+        # ⚠️ Si el Retryer nativo de Feign también está activo:
+        #    3 (Feign) × 3 (Resilience4j) = 9 intentos reales. Desactívalo.
+        maxAttempts: 3
+
+        # Espera inicial entre reintentos
+        # Tiempo de espera entre reintentos.
+        # Con backoff exponencial: 500ms → 1000ms → 2000ms.
+        waitDuration: 500ms
+
+        # Backoff exponencial: duplica el tiempo entre cada reintento
+        # Reintento 1: 500ms, Reintento 2: 1000ms, Reintento 3: 2000ms
+        # Backoff exponencial: multiplica el waitDuration en cada reintento.
+        # Evita saturar el servicio caído con reintentos inmediatos (thundering herd).
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2.0
+
+        # Límite del backoff para no esperar infinitamente.
+        # Sin esto: con mult=2 y waitDuration=500ms → 500 → 1000 → 2000 → 4000...
+        # Con maxWait=5s: 500 → 1000 → 2000 → 5000 → 5000 (se topa).
+        exponentialMaxWaitDuration: 5s
+
+
+        # Solo reintenta con estas excepciones (errores de RED, no de negocio)
+        # IOException: problemas de red/conexión
+        # RetryableException: Feign indica que se puede reintentar
+        retryExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - java.net.SocketTimeoutException
+          - com.e_commerce.orderservice.Exceptions.OrderExceptions.ServiceException
+          - feign.RetryableException # lanzada por el ErrorDecoder para 503/502/504
+
+        # Excepciones que NUNCA se reintentan (aunque estén en retryExceptions).
+        # ProductNotFoundException ya es ignorada por retryExceptions arriba,
+        # pero puedes ser explícito aquí para claridad:
+        ignoreExceptions:
+          - com.e_commerce.orderservice.Exceptions.OrderExceptions.ProductNotFoundException
+          - com.e_commerce.orderservice.Exceptions.OrderExceptions.StockConflictException
+
+  # ── TimeLimiter: tiempo máximo total para la operación (CB + retries) ──
+  # ── TIME LIMITER ────────────────────────────────────────────────────
+  # Tiempo TOTAL máximo para toda la operación (CB + Retry incluidos).
+  # Si los 3 reintentos tardan 500+1000+2000ms = 3.5s → ok.
+  # Si el servicio tarda 10s en responder incluso al primer intento → corta.
+  timelimiter:
+    instances:
+      products-service:
+        # Si la operación completa (incluyendo reintentos) tarda más de 5s → TimeoutException → fallback
+        timeoutDuration: 6s
+        cancelRunningFuture: true    # cancela el CompletableFuture si hay timeout
+
+# -----------------------------------------------------------------------------
+# ── Actuator: qué endpoints exponer ──
+# -----------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+          # circuitbreakers: estado de cada CB (/actuator/circuitbreakers)
+        # retries: métricas de reintentos
+        # health: liveness/readiness (incluye estado de los CBs)
+        include: health, info, metrics, circuitbreakers, retries
+  endpoint:
+    health:
+      show-details: always
+  # Incluir el estado del CB en el /actuator/health
+  health:
+    circuitbreakers:
+      enabled: true
+
+app:
+  kafka:
+    topics:
+      # Prefijo de todos los topics del outbox (debe coincidir con Debezium)
+      outbox-prefix: outbox
+      # Topics espec�ficos (generados por Debezium OutboxEventRouter)
+      mensajes: outbox.order.order-created
+  outbox:
+    # Tiempo m�ximo que un evento puede estar PENDING antes de alertar
+    max-pending-minutes: 30
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+# ── URL del products-service (externalizada para fácil cambio) ──
+services:
+  products:
+    url: products-service

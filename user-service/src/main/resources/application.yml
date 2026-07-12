@@ -1,0 +1,196 @@
+# -----------------------------------------------------------------------------
+# SERVER CONFIGURATION
+# -----------------------------------------------------------------------------
+server:
+  # Puerto del servicio
+  port: 7199
+  # Servlet context path (si necesitamos /api prefix)
+  # servlet:
+  #   context-path: /api
+
+public:
+  routes:
+    - /swagger-ui/**
+    - /swagger-ui.html
+    - /v3/api-docs
+    - /user-service/v3/api-docs
+    - /v1/api/users/register
+    - /v1/api/users/verify
+
+# -----------------------------------------------------------------------------
+# SPRING APPLICATION - CONFIGURACI�N PRINCIPAL
+# -----------------------------------------------------------------------------
+spring:
+
+  # Application name (para service discovery, logs, etc.)
+  application:
+    name: user-service
+
+  kafka:
+    # ─── Conexión al broker ───────────────────────────────────────────
+    bootstrap-servers: localhost:9092        # (1)
+
+    consumer:
+      # group-id: identifica a tu aplicación como consumidor.
+      # Kafka reparte las particiones entre todas las instancias del mismo grupo.
+      # Si tienes 3 instancias del servicio, cada una procesará 1 partición (con 3 particiones).
+      group-id: user-service-consumer
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # acks=all: el broker confirma que TODOS los replicas recibieron el mensaje.
+      # Es el nivel más seguro (no pierde mensajes aunque caiga el líder).
+      acks: all
+      # Número de reintentos si el broker falla temporalmente
+      retries: 5000
+      properties:
+        # Tiempo entre reintentos (evita saturar el broker)
+        retry.backoff.ms: 1000
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        replication.factor: 3
+        min.insync.replicas: 2
+        delivery.timeout.ms: 120000
+        linger.ms: 20
+        compression.type: snappy
+
+
+    listener:
+      # MANUAL_IMMEDIATE: la app confirma el offset manualmente tras procesar.
+      # Combinado con enable-auto-commit: false, da control total sobre el commit.
+      # ack-mode: MANUAL_IMMEDIATE
+      # Número de threads para procesar mensajes en paralelo
+      concurrency: 3
+#
+#    # ─── PRODUCTOR ───────────────────────────────────────────────────
+#    producer:
+#      key-serializer: org.apache.kafka.common.serialization.StringSerializer    # (2)
+#      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer # (3)
+#      acks: all            # (4)
+#      retries: 3           # (5)
+#      properties:
+#        enable.idempotence: true             # (6)
+#        max.in.flight.requests.per.connection: 1  # (7)
+#        batch.size: 16384                    # (8)
+#        linger.ms: 5
+#        delivery.timeout.ms: 5000
+#        request.timeout.ms: 3000
+#        max.block.ms: 5000
+#        reconnect.backoff.ms: 1000
+#        retry.backoff.ms: 1000
+
+  # ---------------------------------------------------------------------
+  # DATABASE CONFIGURATION (JPA/Hibernate)
+  # ---------------------------------------------------------------------
+  datasource:
+    # Driver JDBC de PostgreSQL
+    url: jdbc:postgresql://localhost:5432/user_accounts_mc
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+    # HikariCP Connection Pool
+    hikari:
+      # Maximum pool size
+      maximum-pool-size: 10
+      # Minimum idle connections
+      minimum-idle: 5
+      # Connection timeout (ms)
+      connection-timeout: 30000
+      # Idle timeout (ms)
+      idle-timeout: 600000
+      # Max lifetime (ms)
+      max-lifetime: 1800000
+      # Pool name for logging
+      pool-name: AccountServiceHikariPool
+
+  # ---------------------------------------------------------------------
+  # JPA/HIBERNATE CONFIGURATION
+  # ---------------------------------------------------------------------
+  jpa:
+    # Show SQL en logs (para desarrollo)
+    show-sql: true
+    # Hibernate ddl-auto:
+    # - none: No hace nada (usar con schema.sql)
+    # - validate: Valida esquema (production)
+    # - update: Actualiza esquema (dev)
+    # - create: Crea tablas (dev)
+    # - create-drop: Crea y borra (test)
+    hibernate:
+      ddl-auto: update
+    # Properties espec�ficas de Hibernate
+    properties:
+      hibernate:
+        # Dialecto de PostgreSQL
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Batch size para inserts
+        jdbc:
+          batch_size: 20
+        # order_inserts: Mejora performance en batch
+        order_inserts: true
+        # order_updates: Mejora performance en batch
+        order_updates: true
+        # jdbc:batch_versioned_data: Soporta RETURNING
+        batch_versioned_data: true
+
+
+# -----------------------------------------------------------------------------
+# EUREKA SERVICE DISCOVERY
+# -----------------------------------------------------------------------------
+eureka:
+  # Client configuration
+  client:
+    # Habilitar registro en Eureka
+    enabled: true
+    # URL del Eureka Server
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    # Registry fetch interval (seconds)
+    registry-fetch-interval-seconds: 30
+    # Instance preference
+    instance-info-replication-interval-seconds: 30
+  # Instance configuration
+  instance:
+    # Prefer IP address (vs hostname)
+    prefer-ip-address: true
+    # Instance ID en Eureka
+    instance-id: ${spring.application.name}:${server.port}
+    # Lease renewal interval (seconds)
+    lease-renewal-interval-in-seconds: 30
+    # Lease expiration duration (seconds)
+    lease-expiration-duration-in-seconds: 90
+
+
+# -----------------------------------------------------------------------------
+# LOGGING CONFIGURATION
+# -----------------------------------------------------------------------------
+logging:
+  # Level root
+  level:
+    root: INFO
+    com.banco.sistema: DEBUG
+    org.springframework.security: TRACE
+  # Pattern
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+
+
+app:
+  kafka:
+    topics:
+      # Prefijo de todos los topics del outbox (debe coincidir con Debezium)
+      outbox-prefix: outbox
+      # Topics específicos (generados por Debezium OutboxEventRouter)
+      mensajes: outbox.user.user-created
+  outbox:
+    # Tiempo máximo que un evento puede estar PENDING antes de alertar
+    max-pending-minutes: 30
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs

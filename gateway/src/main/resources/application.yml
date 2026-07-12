@@ -1,0 +1,124 @@
+server:
+  port: 7080
+
+spring:
+  application:
+    name: gateway
+
+  # ─────────────────────────────────────────────────────────────────────
+  # CLOUD GATEWAY ROUTES
+  # Cada "route" define: qué peticiones capturar (predicates)
+  # y a dónde reenviarlas (uri).
+  # ─────────────────────────────────────────────────────────────────────
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: auth-service
+          uri: lb://account-service
+          predicates:
+            - Path=/v1/api/auth/**
+
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/v1/api/users/**
+
+        # Ruta especial SOLO para exponer la spec OpenAPI de orders-service bajo un path con prefijo,
+        # asi el gateway puede distinguir de que servicio es cada documentacion agregada.
+        - id: user-service-docs
+          uri: lb://user-service
+          predicates:
+            - Path=/user-service/v3/api-docs
+          filters:
+            # Spring Cloud Gateway envia la peticion a /orders-service/v3/api-docs,
+            # pero orders-service en realidad expone la suya en /v3/api-docs (sin prefijo).
+            # RewritePath reescribe la URL antes de reenviarla.
+            - RewritePath=/user-service/v3/api-docs, /v3/api-docs
+
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/v1/api/orders/**
+
+        - id: order-service-actuator
+          uri: lb://order-service
+          predicates:
+            - Path=/actuator/**
+
+        - id: products-service
+          uri: lb://products-service
+          predicates:
+            - Path=/v1/api/products/**
+
+# -----------------------------------------------------------------------------
+# EUREKA SERVICE DISCOVERY
+# -----------------------------------------------------------------------------
+eureka:
+  # Client configuration
+  client:
+    # Habilitar registro en Eureka
+    enabled: true
+    # URL del Eureka Server
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    # Registry fetch interval (seconds)
+    registry-fetch-interval-seconds: 30
+    # Instance preference
+    instance-info-replication-interval-seconds: 30
+  # Instance configuration
+  instance:
+    # Prefer IP address (vs hostname)
+    prefer-ip-address: true
+    # Instance ID en Eureka
+    instance-id: ${spring.application.name}:${server.port}
+    # Lease renewal interval (seconds)
+    lease-renewal-interval-in-seconds: 30
+    # Lease expiration duration (seconds)
+    lease-expiration-duration-in-seconds: 90
+
+
+# ─────────────────────────────────────────────────────────────────────
+# JWT: la misma clave secreta que usó Auth Service para firmar.
+# Gracias a esto el gateway puede verificar la firma sin llamar
+# a Auth Service en cada petición (verificación local = muy rápido).
+# ─────────────────────────────────────────────────────────────────────
+jwt:
+  secret: ${JWT_SECRET}
+
+# ─────────────────────────────────────────────────────────────────────
+# Rutas públicas: no requieren JWT.
+# El filtro leerá esta lista para saber qué dejar pasar sin validar.
+# ─────────────────────────────────────────────────────────────────────
+public:
+  routes:
+    - /swagger-ui/**
+    - /actuator/circuitbreakers
+    - /actuator/info
+    - /actuator/metrics
+    - /actuator/retries
+    - /swagger-ui.html
+    - /v3/api-docs/**
+    - /user-service/v3/api-docs
+    - /v1/api/auth/login
+    - /v1/api/users/register
+    - /v1/api/users/verify
+
+# Aqui esta la parte clave de la agregacion: le decimos a springdoc-ui del propio gateway
+# que en vez de generar su propia spec, muestre un selector con las specs de otros servicios.
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: user-service
+        url: /user-service/v3/api-docs
+    # Cuando agregas mas microservicios, solo añades una entrada mas aqui y una ruta mas arriba:
+    # - name: inventory-service
+    #   url: /inventory-service/v3/api-docs
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: DEBUG

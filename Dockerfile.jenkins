@@ -1,0 +1,35 @@
+# Dockerfile.jenkins
+#
+# La imagen oficial de Jenkins NO trae el cliente de Docker ni Maven
+# instalados. Como tu pipeline va a necesitar ejecutar "mvn" y "docker
+# build", extendemos la imagen oficial para añadir ambas herramientas.
+#
+# Se usa junto al docker-compose.yml (mira la sección "build" que
+# añadimos allí).
+
+FROM jenkins/jenkins:lts-jdk17
+
+# Jenkins corre normalmente como usuario no-root ("jenkins"). Para instalar
+# paquetes con apt necesitamos root temporalmente.
+USER root
+
+# Instalamos:
+# - docker.io: el cliente de Docker (para poder hacer "docker build" desde
+#   dentro del pipeline; recuerda que gracias al socket montado en el
+#   docker-compose, ese comando en realidad habla con el Docker de tu host)
+# - maven: para compilar y testear el proyecto Spring Boot
+# - git: normalmente ya viene, pero lo forzamos por si acaso
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        docker.io \
+        maven \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Añadimos al usuario "jenkins" al grupo docker para que pueda ejecutar
+# comandos docker sin sudo (necesario para usar el socket montado)
+RUN groupadd -f docker && usermod -aG docker jenkins
+
+# Volvemos al usuario jenkins (buena práctica de seguridad, no dejar el
+# contenedor corriendo como root)
+USER jenkins

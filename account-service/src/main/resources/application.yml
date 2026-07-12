@@ -1,0 +1,121 @@
+# -----------------------------------------------------------------------------
+# SERVER CONFIGURATION
+# -----------------------------------------------------------------------------
+server:
+  # Puerto del servicio
+  port: 6589
+  # Servlet context path (si necesitamos /api prefix)
+  # servlet:
+  #   context-path: /api
+
+# -----------------------------------------------------------------------------
+# SPRING APPLICATION - CONFIGURACI�N PRINCIPAL
+# -----------------------------------------------------------------------------
+spring:
+  # Application name (para service discovery, logs, etc.)
+  application:
+    name: account-service
+  # ---------------------------------------------------------------------
+  # DATABASE CONFIGURATION (JPA/Hibernate)
+  # ---------------------------------------------------------------------
+  datasource:
+    # Driver JDBC de PostgreSQL
+    url: jdbc:postgresql://localhost:5432/user_accounts_mc
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+    # HikariCP Connection Pool
+    hikari:
+      # Maximum pool size
+      maximum-pool-size: 10
+      # Minimum idle connections
+      minimum-idle: 5
+      # Connection timeout (ms)
+      connection-timeout: 30000
+      # Idle timeout (ms)
+      idle-timeout: 600000
+      # Max lifetime (ms)
+      max-lifetime: 1800000
+      # Pool name for logging
+      pool-name: AccountServiceHikariPool
+
+  # ---------------------------------------------------------------------
+  # JPA/HIBERNATE CONFIGURATION
+  # ---------------------------------------------------------------------
+  jpa:
+    # Show SQL en logs (para desarrollo)
+    show-sql: true
+    # Hibernate ddl-auto:
+    # - none: No hace nada (usar con schema.sql)
+    # - validate: Valida esquema (production)
+    # - update: Actualiza esquema (dev)
+    # - create: Crea tablas (dev)
+    # - create-drop: Crea y borra (test)
+    hibernate:
+      ddl-auto: update
+    # Properties espec�ficas de Hibernate
+    properties:
+      hibernate:
+        # Dialecto de PostgreSQL
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Batch size para inserts
+        jdbc:
+          batch_size: 20
+        # order_inserts: Mejora performance en batch
+        order_inserts: true
+        # order_updates: Mejora performance en batch
+        order_updates: true
+        # jdbc:batch_versioned_data: Soporta RETURNING
+        batch_versioned_data: true
+
+
+# -----------------------------------------------------------------------------
+# EUREKA SERVICE DISCOVERY
+# -----------------------------------------------------------------------------
+eureka:
+  # Client configuration
+  client:
+    # Habilitar registro en Eureka
+    enabled: true
+    # URL del Eureka Server
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    # Registry fetch interval (seconds)
+    registry-fetch-interval-seconds: 30
+    # Instance preference
+    instance-info-replication-interval-seconds: 30
+  # Instance configuration
+  instance:
+    # Prefer IP address (vs hostname)
+    prefer-ip-address: true
+    # Instance ID en Eureka
+    instance-id: ${spring.application.name}:${server.port}
+    # Lease renewal interval (seconds)
+    lease-renewal-interval-in-seconds: 30
+    # Lease expiration duration (seconds)
+    lease-expiration-duration-in-seconds: 90
+
+
+# -----------------------------------------------------------------------------
+# LOGGING CONFIGURATION
+# -----------------------------------------------------------------------------
+logging:
+  # Level root
+  level:
+    root: INFO
+    com.banco.sistema: DEBUG
+  # Pattern
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+
+#JWT
+# En producci�n esto va en variables de entorno, NUNCA hardcodeado
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 900000
+  # Expiracion del Refresh Token: 7 d�as en milisegundos
+  time:
+    refresh-expiration: 604800000

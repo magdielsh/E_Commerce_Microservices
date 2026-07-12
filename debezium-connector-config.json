@@ -1,0 +1,44 @@
+{
+  "name": "user-outbox-connector",
+  "config": {
+
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+
+    "database.hostname": "host.docker.internal",
+    "database.port": "5432",
+    "database.user": "debezium_user",
+    "database.password": "postgres",
+    "database.dbname": "user_accounts_mc",
+
+    "database.server.name": "message-db-server",
+    "table.include.list": "public.outbox_events",
+
+    "slot.name": "debezium_outbox_user_slot",
+
+    "snapshot.mode": "initial",
+
+    "plugin.name": "pgoutput",
+
+    "topic.prefix": "outbox.user",
+
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+
+    "transforms.outbox.table.field.event.id":            "id",
+    "transforms.outbox.table.field.event.key":           "aggregate_id",
+    "transforms.outbox.table.field.event.type":          "event_type",
+    "transforms.outbox.table.field.event.payload":       "payload",
+    "transforms.outbox.route.by.field":                  "aggregate_type",
+    "transforms.outbox.route.topic.replacement":         "outbox.user.${routedByValue}",
+    "transforms.outbox.table.expand.json.payload": "true",
+    "transforms.outbox.fields.additional.placement": "event_type:header:eventType",
+
+    "tombstones.on.delete": "false",
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+
+    "heartbeat.interval.ms": "10000",
+    "heartbeat.action.query": "INSERT INTO debezium_heartbeat(ts) VALUES(NOW()) ON CONFLICT DO NOTHING"
+  }
+}

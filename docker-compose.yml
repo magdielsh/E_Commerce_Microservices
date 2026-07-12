@@ -1,0 +1,316 @@
+services:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # POSTGRESQL 15
+  # Base de datos principal. Almacena:
+  #   - mensajes: entidad de negocio
+  #   - outbox_events: tabla del patrón outbox (relay hacia Kafka)
+  #
+  # CONFIGURACIÓN CRÍTICA:
+  #   wal_level=logical → PostgreSQL incluye datos antes/después del cambio
+  #   en el WAL (Write-Ahead Log), necesario para CDC con Debezium.
+  # ─────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_mensajes
+    restart: unless-stopped
+    ports:
+      - "5433:5433"
+    environment:
+      POSTGRES_DB: mensajes_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_pass_2024
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"           # Nivel lógico: obligatorio para Debezium
+      - "-c"
+      - "max_wal_senders=5"           # Máximo 5 conexiones de replicación simultáneas
+      - "-c"
+      - "max_replication_slots=5"     # Máximo 5 slots de replicación (uno por conector)
+      - "-c"
+      - "wal_keep_size=1024"          # Mantiene 1GB de WAL para no perder eventos
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d mensajes_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # ZOOKEEPER
+  # Coordinador del clúster Kafka. Gestiona:
+  #   - Elección de líderes de partición
+  #   - Registro de brokers
+  #   - Configuración distribuida
+  #
+  # NOTA: Kafka 3.x puede funcionar sin Zookeeper (KRaft mode),
+  # pero la imagen de Debezium/Confluent sigue usando Zookeeper por estabilidad.
+  # ─────────────────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper_mensajes
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 22181
+      ZOOKEEPER_TICK_TIME: 2000       # Heartbeat cada 2s para detectar nodos caídos
+      ZOOKEEPER_SYNC_LIMIT: 2         # Máximo retraso permitido entre líder y seguidor
+    ports:
+      - "22181:22181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # KAFKA BROKER
+  # El bus de mensajes central. Los eventos del Outbox llegarán aquí
+  # y tu servicio Spring Boot los consumirá desde aquí.
+  #
+  # LISTENERS:
+  #   - INTERNAL (kafka:29092): para comunicación entre contenedores Docker
+  #   - EXTERNAL (localhost:9092): para tu app Spring Boot en el host
+  # ─────────────────────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka_mensajes
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:22181
+
+      # Dos listeners: interno (entre contenedores) y externo (host → Docker)
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # Replicación factor 1 (solo 1 broker en local).
+      # EN PRODUCCIÓN: mínimo 3 brokers y factor=3
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # Retención: guarda los mensajes 7 días o hasta 1GB por partición
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+
+      # Permite crear topics automáticamente (Debezium los crea por ti)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # Número de particiones por defecto. En producción ajusta según throughput esperado.
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # KAFKA CONNECT con DEBEZIUM
+  # Motor que ejecuta los conectores. Debezium viene preinstalado
+  # en la imagen oficial. Expone una API REST en :8083 para
+  # registrar, pausar y eliminar conectores.
+  # ─────────────────────────────────────────────────────────────────────────
+  kafka-connect:
+    image: debezium/connect:2.4
+    container_name: kafka_connect_mensajes
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      # Dónde está el broker Kafka (red interna Docker)
+      BOOTSTRAP_SERVERS: kafka:29092
+
+      # ID único del grupo de workers (para alta disponibilidad)
+      GROUP_ID: connect-cluster-mensajes
+
+      # Topics internos donde Kafka Connect guarda su estado.
+      # NUNCA los uses para tus eventos de negocio.
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_status
+
+      # Factor de replicación de los topics internos (1 en local)
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+      # Serializador de clave y valor: JSON plano (más legible que Avro)
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      # false: no incluye el schema en cada mensaje (más ligero)
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/connectors || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # KAFKA UI (Provectus)
+  # Panel de control visual. Permite ver:
+  #   - Topics y sus mensajes en tiempo real
+  #   - Consumer groups y sus offsets (lag)
+  #   - Estado de los conectores Debezium
+  # Acceso: http://localhost:8080
+  # ─────────────────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka_ui_mensajes
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - kafka-connect
+    ports:
+      - "5901:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SPRING BOOT APP
+  # Tu servicio. Se arranca después de que Kafka y Postgres estén listos.
+  # En desarrollo es más cómodo arrancarlo desde el IDE, pero lo incluimos
+  # aquí para tener el stack completo en un solo comando.
+  #
+  # COMENTADO: descomenta cuando hagas ./mvnw package y tengas el JAR
+  # ─────────────────────────────────────────────────────────────────────────
+  # mensajes-app:
+  #   build: .
+  #   container_name: mensajes_app
+  #   restart: unless-stopped
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mensajes_db
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #   profiles:
+  #     - full-stack
+
+  akhq:
+    image: tchiotludo/akhq:latest
+    container_name: akhq
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - kafka-connect
+    ports:
+      - "5902:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            local:
+              properties:
+                bootstrap.servers: "kafka:29092"
+              connect:
+                - name: debezium-connect
+                  url: "http://kafka-connect:8083"
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  jenkins:
+    # En lugar de usar la imagen oficial "pelada", construimos nuestra
+    # propia imagen (ver Dockerfile.jenkins.jenkins) que añade Docker CLI y Maven,
+    # herramientas que necesitaremos en el pipeline.
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    container_name: jenkins
+    restart: unless-stopped
+
+    ports:
+      # 8080 -> interfaz web de Jenkins
+      - "5900:8080"
+      # 50000 -> puerto que usan los "agentes" Jenkins (si en el futuro
+      # añades workers/agentes remotos, se conectan por aquí)
+      - "50000:50000"
+
+    volumes:
+      # Volumen persistente: aquí Jenkins guarda toda su configuración,
+      # jobs, plugins, credenciales, historial de builds, etc.
+      # Si no lo pones, cada vez que reinicies el contenedor perderás TODO.
+      - jenkins_home:/var/jenkins_home
+
+      # Montamos el socket de Docker del host dentro del contenedor.
+      # Esto permite que, desde un pipeline de Jenkins, puedas ejecutar
+      # comandos "docker build", "docker run", etc. y que en realidad
+      # se ejecuten usando el Docker del HOST (tu máquina), no un Docker
+      # anidado dentro del contenedor.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Opcional: si quieres que Jenkins tenga el binario docker disponible
+      # dentro de su propio contenedor (la imagen base no lo trae).
+      # Lo instalamos manualmente más abajo con un Dockerfile.jenkins custom si
+      # hiciera falta; de momento probamos así porque muchas veces basta
+      # con montar el socket y usar una imagen que ya traiga el cliente.
+
+    environment:
+      # Evita que te pida aceptar el wizard de "Getting Started" con
+      # plugins sugeridos de forma interactiva la primera vez (opcional,
+      # lo dejamos comentado para que veas el proceso de instalación real
+      # la primera vez que lo levantes)
+      # - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+      TZ: "Europe/Madrid"
+
+    # Le damos acceso al grupo "docker" del host para que el usuario
+    # dentro del contenedor pueda usar el socket sin problemas de permisos.
+    # En Linux, sustituye 999 por el GID real del grupo docker de tu host
+    # (compruébalo con: getent group docker)
+    group_add:
+      - "999"
+
+volumes:
+  postgres_data:
+  kafka_data:
+  zookeeper_data:
+  zookeeper_log:
+  redis_data:
+  jenkins_home:
+    name: jenkins_home
+
+
+networks:
+  default:
+    name: jenkins-net

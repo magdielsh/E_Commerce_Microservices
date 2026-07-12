@@ -1,0 +1,63 @@
+server:
+  port: 7095
+
+spring:
+  application:
+    name: products-service
+
+  # Jackson: configuración del serializador/deserializador JSON
+  jackson:
+    # Convierte camelCase Java ? snake_case JSON (ej: stockQuantity ? stock_quantity)
+    # Descomenta si tu API sigue la convención snake_case:
+    # property-naming-strategy: SNAKE_CASE
+
+    # Ignora propiedades desconocidas al deserializar (evita errores en versiones de API)
+    deserialization:
+      fail-on-unknown-properties: false
+
+# Actuator: qué endpoints exponer
+management:
+  endpoints:
+    web:
+      exposure:
+        # health: para readiness/liveness probes (Kubernetes, Docker)
+        # info: metadatos del servicio
+        # metrics: métricas para Prometheus/Grafana
+        include: health, info, metrics
+  endpoint:
+    health:
+      # show-details: siempre muestra detalles del health check
+      # útil para saber si la DB, Redis, etc. están OK
+      show-details: always
+
+# Logging: nivel por paquete
+logging:
+  level:
+    com.e_commerce.productservice: DEBUG   # Nuestro código en DEBUG para ver todo
+    org.springframework.web: INFO  # Spring Web en INFO (menos verboso
+
+
+# -----------------------------------------------------------------------------
+# EUREKA SERVICE DISCOVERY
+# -----------------------------------------------------------------------------
+eureka:
+  client:
+    # Habilitar registro en Eureka
+    enabled: true
+    # URL del Eureka Server
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    # Registry fetch interval (seconds)
+    registry-fetch-interval-seconds: 30
+    # Instance preference
+    instance-info-replication-interval-seconds: 30
+  # Instance configuration
+  instance:
+    # Prefer IP address (vs hostname)
+    prefer-ip-address: true
+    # Instance ID en Eureka
+    instance-id: ${spring.application.name}:${server.port}
+    # Lease renewal interval (seconds)
+    lease-renewal-interval-in-seconds: 30
+    # Lease expiration duration (seconds)
+    lease-expiration-duration-in-seconds: 90
