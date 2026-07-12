@@ -209,7 +209,7 @@ public class OrderService {
              * Esto ocurre cuando:
              *   - El CB de products-service está OPEN
              *   - products-service devuelve 5xx
-             *
+             * esto en una prueba para ver
              * Marcamos la orden como FAILED.
              * En producción: publicarías un evento Kafka para compensar
              * y reintentar con un worker asíncrono.
