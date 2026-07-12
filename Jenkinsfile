@@ -98,14 +98,14 @@ pipeline {
         // ---------------------------------------------------------
         // STAGE 5: Construir imagen Docker
         // ---------------------------------------------------------
-        stage('Docker Build') {
-            steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                // También la etiquetamos como "latest" para tener
-                // siempre una referencia fija a la última versión
-                sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
-            }
-        }
+//         stage('Docker Build') {
+//             steps {
+//                 sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+//                 // También la etiquetamos como "latest" para tener
+//                 // siempre una referencia fija a la última versión
+//                 sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
+//             }
+//         }
 
         // ---------------------------------------------------------
         // STAGE 6: Desplegar (versión local sencilla)
@@ -116,19 +116,19 @@ pipeline {
         //  - Ansible/SSH si despliegas sobre VMs
         // Para tu entorno LOCAL, simplemente paramos el contenedor
         // anterior (si existe) y levantamos el nuevo.
-        stage('Deploy') {
-            steps {
-                sh '''
-                    docker stop mi-app-spring-boot || true
-                    docker rm mi-app-spring-boot || true
-                    docker run -d \
-                        --name mi-app-spring-boot \
-                        --network jenkins-net \
-                        -p 8081:8080 \
-                        ${IMAGE_NAME}:${IMAGE_TAG}
-                '''
-            }
-        }
+//         stage('Deploy') {
+//             steps {
+//                 sh '''
+//                     docker stop mi-app-spring-boot || true
+//                     docker rm mi-app-spring-boot || true
+//                     docker run -d \
+//                         --name mi-app-spring-boot \
+//                         --network jenkins-net \
+//                         -p 8081:8080 \
+//                         ${IMAGE_NAME}:${IMAGE_TAG}
+//                 '''
+//             }
+//         }
     }
 
     // Acciones que se ejecutan al finalizar el pipeline, independientemente
