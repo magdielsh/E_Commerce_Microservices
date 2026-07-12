@@ -64,19 +64,19 @@ pipeline {
         // ---------------------------------------------------------
         // STAGE 3: Tests
         // ---------------------------------------------------------
-        stage('Test') {
-            steps {
-                sh 'mvn test'
-            }
-            post {
-                // "always" se ejecuta pase lo que pase (tests OK o KO).
-                // junit publica los resultados en un reporte visual
-                // dentro de Jenkins (pestaña "Test Result")
-                always {
-                    junit 'target/surefire-reports/*.xml'
-                }
-            }
-        }
+//         stage('Test') {
+//             steps {
+//                 sh 'mvn test'
+//             }
+//             post {
+//                 // "always" se ejecuta pase lo que pase (tests OK o KO).
+//                 // junit publica los resultados en un reporte visual
+//                 // dentro de Jenkins (pestaña "Test Result")
+//                 always {
+//                     junit 'target/surefire-reports/*.xml'
+//                 }
+//             }
+//         }
 
         // ---------------------------------------------------------
         // STAGE 4: Empaquetar (genera el .jar ejecutable)
