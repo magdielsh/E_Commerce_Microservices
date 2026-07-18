@@ -98,14 +98,14 @@ pipeline {
         // ---------------------------------------------------------
         // STAGE 5: Construir imagen Docker
         // ---------------------------------------------------------
-//         stage('Docker Build') {
-//             steps {
-//                 sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-//                 // También la etiquetamos como "latest" para tener
-//                 // siempre una referencia fija a la última versión
-//                 sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
-//             }
-//         }
+        stage('Docker Build') {
+            steps {
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                // También la etiquetamos como "latest" para tener
+                // siempre una referencia fija a la última versión
+                sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
+            }
+        }
 
         // ---------------------------------------------------------
         // STAGE 6: Desplegar (versión local sencilla)
