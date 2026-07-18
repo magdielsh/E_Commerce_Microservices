@@ -44,7 +44,7 @@ pipeline {
     environment {
         // Registry donde subiremos las imágenes. Si usas Docker Hub,
         // sería algo como "tuusuario". Si usas uno privado, la URL completa.
-        REGISTRY = "localhost:5000"
+        REGISTRY = "magdielsh"
 
         // Usamos el número de build como tag, para que cada imagen sea
         // trazable a un build concreto de Jenkins (útil para hacer rollback:
@@ -264,7 +264,7 @@ pipeline {
         }
 
         // ---------------------------------------------------------
-        // STAGE 6: Desplegar (versión local sencilla)
+        // STAGE 6: Desplegar SOLO si estamos en main
         // ---------------------------------------------------------
         // En un entorno real esto normalmente sería:
         //  - Push a un registry (Docker Hub, ECR, GitLab Registry...)
