@@ -258,6 +258,7 @@ services:
       context: .
       dockerfile: Dockerfile.jenkins
     container_name: jenkins
+    user: root
     restart: unless-stopped
 
     ports:

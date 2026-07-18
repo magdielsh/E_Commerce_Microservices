@@ -18,7 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final UserRepository userRepository;
+    private final UserRepository userRepository; // User Repository
     private final AuthenticationProvider authenticationProvider;
 
     @Bean
