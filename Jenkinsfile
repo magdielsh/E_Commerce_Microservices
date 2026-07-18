@@ -52,9 +52,9 @@ pipeline {
         IMAGE_TAG = "${env.BUILD_NUMBER}"
 
         // Nombre que le daremos a la imagen Docker resultante
-        IMAGE_NAME_ORDER = "order_service"
+        IMAGE_NAME_ORDER = "order-service-0.0.1"
 
-        IMAGE_NAME_PRODUCT = "product_service"
+        IMAGE_NAME_PRODUCT = "product-service-0.0.1"
 
         // Nombre de la red Docker donde correrán los contenedores, para que
         // order-service pueda resolver "products-service" por nombre DNS
