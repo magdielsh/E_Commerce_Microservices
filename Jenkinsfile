@@ -273,9 +273,9 @@ pipeline {
         // Para tu entorno LOCAL, simplemente paramos el contenedor
         // anterior (si existe) y levantamos el nuevo.
         stage('Deploy'){
-            when {
-                branch 'main'
-            }
+//            when {
+//                branch 'main'
+//            }
             steps {
                 script{
                     // Solo hacemos deploy de la imagen del servicio que
