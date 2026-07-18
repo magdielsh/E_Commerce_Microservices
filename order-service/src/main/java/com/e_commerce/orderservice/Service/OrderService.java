@@ -214,7 +214,7 @@ public class OrderService {
              * En producción: publicarías un evento Kafka para compensar
              * y reintentar con un worker asíncrono.
              */
-            log.error("ERROR REAL DE FEIGN", e);
+            log.error("ESTO ES UN ERROR REAL DE FEIGN", e);
             e.printStackTrace();
             log.error("Fallo al descontar stock. Orden #{} marcada como FAILED: {}", orderId, e.getMessage());
             order.setStatus(EStatus.FAILED);
