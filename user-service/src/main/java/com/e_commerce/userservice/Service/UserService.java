@@ -84,6 +84,7 @@ public class UserService implements IUserInterface {
 
         UserEntity user = userRepository.findByEmail(userDTO.getUsername()).get();
 
+        log.info("Prueba");
         Set<Role> roles = userDTO.getRoles()
                 .stream()
                 .map(role -> Role.builder()
