@@ -287,7 +287,7 @@ pipeline {
                           docker run -d \
                             --name products-service \
                             --network ${NETWORK} \
-                            -p 5556:5905 \
+                            -p 7198:8085 \
                             ${IMAGE_NAME_PRODUCT}:latest
                            """
                     }
@@ -298,8 +298,8 @@ pipeline {
                           docker run -d \
                             --name order-service \
                             --network ${NETWORK} \
-                            -p 5557:5906 \
-                            ${IMAGE_NAME_PRODUCT}:latest
+                            -p 7199:8086 \
+                            ${IMAGE_NAME_ORDER}:latest
                            """
                     }
 
