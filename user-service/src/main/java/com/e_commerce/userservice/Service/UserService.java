@@ -105,7 +105,7 @@ public class UserService implements IUserInterface {
     @Transactional
     public void deleteUser(Long userId) {
 
-        log.info("Se va a eliminar el usuario con id: {}", userId);
+        log.info("Se va a eliminar el usuario de la BD con id: {}", userId);
         userRepository.deleteById(userId);
 
     }
