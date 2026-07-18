@@ -224,7 +224,7 @@ pipeline {
             steps {
                 // Levanta products-service primero (order-service depende
                 // de él vía Feign), y luego order-service.
-                sh '''
+                sh """
                     docker stop products-service || true
                     docker rm products-service || true
                     docker run -d \
@@ -240,7 +240,7 @@ pipeline {
                         --network ${NETWORK} \
                         -p 8081:8080 \
                         ${REGISTRY}/order-service:latest
-                '''
+                """
             }
         }
     }

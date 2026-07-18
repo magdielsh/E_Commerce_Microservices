@@ -272,6 +272,41 @@ pipeline {
         //  - Ansible/SSH si despliegas sobre VMs
         // Para tu entorno LOCAL, simplemente paramos el contenedor
         // anterior (si existe) y levantamos el nuevo.
+        stage('Deploy'){
+            when {
+                branch 'main'
+            }
+            steps {
+                script{
+                    // Solo hacemos deploy de la imagen del servicio que
+                    // realmente cambió (o si es la primera vez, ambos)
+                    if (env.PRODUCTS_CHANGED == 'true') {
+                       sh """
+                          docker stop products-service || true
+                          docker rm products-service || true
+                          docker run -d \
+                            --name products-service \
+                            --network ${NETWORK} \
+                            -p 5556:5905 \
+                            ${IMAGE_NAME_PRODUCT}:latest
+                           """
+                    }
+                    if(env.ORDER_CHANGED == 'true'){
+                     sh  """
+                          docker stop order-service || true
+                          docker rm order-service || true
+                          docker run -d \
+                            --name order-service \
+                            --network ${NETWORK} \
+                            -p 5557:5906 \
+                            ${IMAGE_NAME_PRODUCT}:latest
+                           """
+                    }
+
+
+                }
+            }
+        }
 //         stage('Deploy') {
 //             steps {
 //                 sh '''
