@@ -359,7 +359,7 @@ pipeline {
                           docker run -d \
                             --name eureka-server \
                             --network ${NETWORK} \
-                            -p 8761:8087 \
+                            -p 8761:8761 \
                             ${IMAGE_NAME_EUREKA}:latest
                            """
                     }
@@ -370,7 +370,7 @@ pipeline {
                           docker run -d \
                             --name products-service \
                             --network ${NETWORK} \
-                            -p 7095:8085 \
+                            -p 7095:7095 \
                             ${IMAGE_NAME_PRODUCT}:latest
                            """
                     }
@@ -381,7 +381,7 @@ pipeline {
                           docker run -d \
                             --name order-service \
                             --network ${NETWORK} \
-                            -p 7198:8086 \
+                            -p 7198:7198 \
                             ${IMAGE_NAME_ORDER}:latest
                            """
                     }
