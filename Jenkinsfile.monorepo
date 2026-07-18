@@ -1,19 +1,25 @@
-// Jenkinsfile
+// ============================================================
+// Jenkinsfile - order-service + products-service
+// ============================================================
+// Estructura de repo asumida (monorepo):
 //
-// Este archivo NO va en el proyecto "jenkins-local-setup".
-// Va DENTRO del repositorio de tu proyecto Spring Boot (en la raíz,
-// junto al pom.xml). Esto es "Pipeline as Code": la definición del
-// proceso de CI/CD vive versionada junto a tu código, no se configura
-// a mano en la interfaz web de Jenkins.
+//   /
+//   ├── order-service/
+//   │   ├── pom.xml
+//   │   └── Dockerfile
+//   ├── products-service/
+//   │   ├── pom.xml
+//   │   └── Dockerfile
+//   └── Jenkinsfile   <- este archivo, en la raíz
 //
-// Sintaxis: "Declarative Pipeline" (la forma moderna y recomendada,
-// frente a la sintaxis antigua "Scripted Pipeline" basada en Groovy puro)
+// Cada línea lleva su comentario explicativo justo encima o al lado.
 
 pipeline {
 
-    // agent any = este pipeline puede ejecutarse en cualquier agente
-    // disponible (en tu caso, el propio Jenkins, ya que no tienes
-    // agentes remotos configurados)
+    // "any" = usa cualquier agente/ejecutor disponible en Jenkins.
+    // No fijamos un contenedor Docker global porque cada stage de build
+    // definirá su propio contenedor Maven (ver más abajo), así que el
+    // agente global solo necesita poder ejecutar Docker.
     agent any
 
     // ------------------------------------------------------------
@@ -49,12 +55,7 @@ pipeline {
         // Usamos el número de build como tag, para que cada imagen sea
         // trazable a un build concreto de Jenkins (útil para hacer rollback:
         // "vuelve a desplegar la imagen del build 42").
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-
-        // Nombre que le daremos a la imagen Docker resultante
-        IMAGE_NAME_ORDER = "ORDER_SERVICE"
-
-        IMAGE_NAME_PRODUCT = "PRODUCT_SERVICE"
+        TAG = "${env.BUILD_NUMBER}"
 
         // Nombre de la red Docker donde correrán los contenedores, para que
         // order-service pueda resolver "products-service" por nombre DNS
@@ -63,32 +64,10 @@ pipeline {
         NETWORK = "jenkins-net"
     }
 
-    // Herramientas que Jenkins debe tener configuradas globalmente
-    // (Manage Jenkins > Tools). El nombre "maven3" debe coincidir
-    // EXACTAMENTE con el nombre que le des en esa configuración.
-    tools {
-        maven 'maven3'
-        jdk 'jdk17'
-    }
-
     stages {
 
-        // ---------------------------------------------------------
-        // STAGE 1: Checkout
-        // ---------------------------------------------------------
-        // Jenkins ya hizo el clonado automáticamente si configuraste
-        // el job como "Pipeline script from SCM", pero lo dejamos
-        // explícito para que veas que este paso existe.
-        stage('Checkout') {
-            steps {
-                checkout scm
-                echo "Código descargado. Commit actual:"
-                sh 'git log -1 --oneline'
-            }
-        }
-
         // ==========================================================
-        // STAGE 1.1 Detectar qué cambió
+        // STAGE 1: Detectar qué cambió
         // ==========================================================
         // En un monorepo con 2 microservicios, NO tiene sentido reconstruir
         // ambos si solo tocaste uno. Este stage decide qué construir.
@@ -105,17 +84,17 @@ pipeline {
                     ).trim()
 
                     env.PRODUCTS_CHANGED = sh(
-                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^product-service/' && echo true || echo false",
+                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^products-service/' && echo true || echo false",
                         returnStdout: true
                     ).trim()
 
                     // echo simplemente imprime en el log de consola, para
                     // que puedas ver de un vistazo qué se va a construir.
-                    if (env.ORDER_CHANGED == 'true'){
+                    if (env.ORDER_CHANGED == "true"){
                         echo "Order-Service cambio, se compilara Nuevamente"
                     }
 
-                    if (env.PRODUCTS_CHANGED == 'true'){
+                    if (env.PRODUCTS_CHANGED == "true"){
                         echo "Product-Service cambio, se compilara Nuevamente"
                     }
                 }
@@ -155,7 +134,7 @@ pipeline {
                         // "dir()" cambia el directorio de trabajo solo para
                         // los comandos que están dentro de sus llaves.
                         dir('order-service') {
-                            // -DskipTests Compila sin correr tests todavía (los tests
+                            // Compila sin correr tests todavía (los tests
                             // van en el siguiente sh, para separar reportes)
                             sh 'mvn clean compile -DskipTests'
 
@@ -164,23 +143,20 @@ pipeline {
                             // circuit breaker) se ejecutan en este paso,
                             // sin necesidad de que products-service real
                             // esté levantado.
-                            //sh 'mvn test'
+                            sh 'mvn test'
                         }
                     }
-//                    post {
-//                        // "always" se ejecuta pase lo que pase (tests OK o KO).
-//                        // junit publica los resultados en un reporte visual
-//                        // dentro de Jenkins (pestaña "Test Result")
-//                        // Publica el reporte de tests SOLO para este stage,
-//                        // apuntando a la ruta dentro de order-service/
-//                        always {
-//                            junit 'order-service/target/surefire-reports/*.xml'
-//                        }
-//                    }
+                    post {
+                        // Publica el reporte de tests SOLO para este stage,
+                        // apuntando a la ruta dentro de order-service/
+                        always {
+                            junit 'order-service/target/surefire-reports/*.xml'
+                        }
+                    }
                 }
 
                 // -------- products-service --------
-                stage('product-service') {
+                stage('products-service') {
                     when {
                         expression { env.PRODUCTS_CHANGED == 'true' }
                     }
@@ -191,113 +167,100 @@ pipeline {
                         }
                     }
                     steps {
-                        dir('product-service') {
+                        dir('products-service') {
                             sh 'mvn clean compile -DskipTests'
-                            //sh 'mvn test'
+                            sh 'mvn test'
                         }
                     }
-//                    post {
-//                        always {
-//                            junit 'products-service/target/surefire-reports/*.xml'
-//                        }
-//                    }
+                    post {
+                        always {
+                            junit 'products-service/target/surefire-reports/*.xml'
+                        }
+                    }
                 }
             }
         }
 
-        // ---------------------------------------------------------
-        // STAGE 4: Empaquetar (genera el .jar ejecutable)
-        // ---------------------------------------------------------
-        stage('Package') {
+        // ==========================================================
+        // STAGE 3: Empaquetar y construir imágenes Docker
+        // ==========================================================
+        stage('Package & Docker Build') {
+            // Este stage vuelve a correr en el agente principal (no en el
+            // contenedor Maven), porque necesita el comando "docker build",
+            // y el contenedor Maven no tiene el cliente Docker instalado.
             agent any
             steps {
-                script{
+                script {
                     // Solo empaquetamos/construimos imagen del servicio que
                     // realmente cambió (o si es la primera vez, ambos)
-                    if(env.ORDER_CHANGED == 'true'){
-                        dir('order-service'){
+                    if (env.ORDER_CHANGED == 'true') {
+                        dir('order-service') {
                             sh 'mvn package -DskipTests'
-                            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+                            sh "docker build -t ${REGISTRY}/order-service:${TAG} ."
+                            sh "docker tag ${REGISTRY}/order-service:${TAG} ${REGISTRY}/order-service:latest"
                         }
                     }
                     if (env.PRODUCTS_CHANGED == 'true') {
-                        dir('product-service') {
+                        dir('products-service') {
                             sh 'mvn package -DskipTests'
-                            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+                            sh "docker build -t ${REGISTRY}/products-service:${TAG} ."
+                            sh "docker tag ${REGISTRY}/products-service:${TAG} ${REGISTRY}/products-service:latest"
                         }
                     }
                 }
             }
-//            post {
-//                success {
-//                    // Guarda el .jar como "artefacto" del build, así
-//                    // puedes descargarlo directamente desde la UI de
-//                    // Jenkins sin tener que ir a buscarlo a mano
-//                    archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-//                }
-//            }
         }
 
-        // ---------------------------------------------------------
-        // STAGE 5: Construir imagen Docker
-        // ---------------------------------------------------------
-        stage('Docker Build') {
-            agent any
+        // ==========================================================
+        // STAGE 4: Desplegar SOLO si estamos en main
+        // ==========================================================
+        // "when { branch 'main' }" hace que este stage se salte por
+        // completo en ramas feature/*, develop, etc. Solo se despliega
+        // automáticamente cuando el push es a main.
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
             steps {
-                script{
-                    // Solo construimos imagen del servicio que
-                    // realmente cambió (o si es la primera vez, ambos)
-                    if(env.ORDER_CHANGED == 'true'){
-                        dir('order-service'){
-                            sh "docker build -t ${IMAGE_NAME_ORDER}:${IMAGE_TAG} ."
-                            sh "docker tag ${IMAGE_NAME_ORDER}:${IMAGE_TAG} ${IMAGE_NAME_ORDER}:latest"
-                        }
-                    }
-                    if (env.PRODUCTS_CHANGED == 'true') {
-                        dir('product-service') {
-                            sh "docker build -t ${IMAGE_NAME_PRODUCT}:${IMAGE_TAG} ."
-                            sh "docker tag ${IMAGE_NAME_PRODUCT}:${IMAGE_TAG} ${IMAGE_NAME_PRODUCT}:latest"
-                        }
-                    }
-                }
+                // Levanta products-service primero (order-service depende
+                // de él vía Feign), y luego order-service.
+                sh '''
+                    docker stop products-service || true
+                    docker rm products-service || true
+                    docker run -d \
+                        --name products-service \
+                        --network ${NETWORK} \
+                        -p 8082:8080 \
+                        ${REGISTRY}/products-service:latest
+
+                    docker stop order-service || true
+                    docker rm order-service || true
+                    docker run -d \
+                        --name order-service \
+                        --network ${NETWORK} \
+                        -p 8081:8080 \
+                        ${REGISTRY}/order-service:latest
+                '''
             }
         }
-
-        // ---------------------------------------------------------
-        // STAGE 6: Desplegar (versión local sencilla)
-        // ---------------------------------------------------------
-        // En un entorno real esto normalmente sería:
-        //  - Push a un registry (Docker Hub, ECR, GitLab Registry...)
-        //  - kubectl apply / helm upgrade si usas Kubernetes
-        //  - Ansible/SSH si despliegas sobre VMs
-        // Para tu entorno LOCAL, simplemente paramos el contenedor
-        // anterior (si existe) y levantamos el nuevo.
-//         stage('Deploy') {
-//             steps {
-//                 sh '''
-//                     docker stop mi-app-spring-boot || true
-//                     docker rm mi-app-spring-boot || true
-//                     docker run -d \
-//                         --name mi-app-spring-boot \
-//                         --network jenkins-net \
-//                         -p 8081:8080 \
-//                         ${IMAGE_NAME}:${IMAGE_TAG}
-//                 '''
-//             }
-//         }
     }
 
-    // Acciones que se ejecutan al finalizar el pipeline, independientemente
-    // del resultado (éxito, fallo, inestable...)
+    // ------------------------------------------------------------
+    // POST: resumen final, se ejecuta siempre al terminar el pipeline
+    // ------------------------------------------------------------
     post {
         success {
-            echo "✅ Pipeline completado con éxito. App desplegada en http://localhost:8081"
+            echo "✅ Pipeline OK. order-service: http://localhost:8081 | products-service: http://localhost:8082"
         }
         failure {
-            echo "❌ El pipeline ha fallado. Revisa los logs del stage que falló."
+            // Aquí en un proyecto real normalmente meterías una
+            // notificación (Slack/email) para que el equipo se entere
+            // sin tener que estar mirando Jenkins constantemente.
+            echo "❌ Pipeline falló. Revisa qué stage se marcó en rojo."
         }
         always {
-            // Limpia el workspace para no acumular basura entre builds
+            // Limpia el workspace del agente principal para no acumular
+            // basura de build en build.
             cleanWs()
         }
     }
