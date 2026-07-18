@@ -187,7 +187,7 @@ public class ProductService {
      * Este método lo llama orders-service cuando confirma una orden.
      */
     public ProductDTO.Response updateStock(Long productId, int quantity) {
-        log.info("Actualizando el stock: productId={}, quantity={}", productId, quantity);
+        log.info("Actualizando stock: productId={}, quantity={}", productId, quantity);
 
         // findById lanza 404 si no existe
         ProductEntity product = productStore.get(productId);
