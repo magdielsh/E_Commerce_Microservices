@@ -68,7 +68,7 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
 
         // Si no hay cabecera o no empieza por "Bearer ", rechazamos con 401
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("Petición sin token a ruta protegida: {}", path);
+            log.warn("Petición sin token a una ruta protegida: {}", path);
             return unauthorized(exchange, "Token requerido");
         }
 

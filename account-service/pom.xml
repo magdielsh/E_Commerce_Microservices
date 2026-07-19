@@ -7,7 +7,7 @@
 		<artifactId>E-commerce-Microservices-Parent</artifactId>
 		<version>0.0.1</version>
 	</parent>
-	<artifactId>acount-service</artifactId>
+	<artifactId>account-service</artifactId>
 
 	<properties>
 		<java.version>17</java.version>
@@ -82,6 +82,7 @@
 	</dependencyManagement>
 
 	<build>
+		<finalName>account-service</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

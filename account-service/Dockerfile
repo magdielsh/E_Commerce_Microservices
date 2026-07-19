@@ -1,0 +1,4 @@
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+COPY target/*.jar account-service-0.0.1.jar
+ENTRYPOINT ["java", "-jar", "account-service-0.0.1.jar"]
