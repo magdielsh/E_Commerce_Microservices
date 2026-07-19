@@ -51,7 +51,7 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 
         String path = exchange.getRequest().getPath().value();
-        log.info("Gateway recibe: {} {}", exchange.getRequest().getMethod(), path);
+        log.info("El Gateway recibe: {} {}", exchange.getRequest().getMethod(), path);
 
         // ─── PASO 1: ¿Es una ruta pública? ───────────────────────────────
         // Si la ruta está en la lista de rutas públicas (ej: /auth/login),

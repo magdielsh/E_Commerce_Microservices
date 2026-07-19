@@ -46,6 +46,8 @@ pipeline {
         // sería algo como "tuusuario". Si usas uno privado, la URL completa.
         REGISTRY = "magdielsh"
 
+        JWT_SECRET = credentials('jwt_secret')
+
         // Usamos el número de build como tag, para que cada imagen sea
         // trazable a un build concreto de Jenkins (útil para hacer rollback:
         // "vuelve a desplegar la imagen del build 42").
@@ -431,6 +433,7 @@ pipeline {
                           docker run -d \
                             --name gateway \
                             --network ${NETWORK} \
+                            -e JWT_SECRET=${JWT_SECRET} \
                             -p 7080:7080 \
                             ${IMAGE_NAME_GATEWAY}:latest
                            """
