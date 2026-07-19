@@ -498,7 +498,7 @@ pipeline {
             emailext (
                 subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: "Build exitoso. Log adjunto.",
-                to: 'magdiel@example.com',
+                to: 'magdielsh30@gmail.com',
                 attachLog: true,          // adjunta el console log completo
                 compressLog: true         // lo comprime en .gz si es grande
             )
