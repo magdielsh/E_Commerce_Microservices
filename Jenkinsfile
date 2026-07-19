@@ -54,15 +54,15 @@ pipeline {
         IMAGE_TAG = "${env.BUILD_NUMBER}"
 
         // Nombre que le daremos a la imagenes de Docker resultantes
-        IMAGE_NAME_EUREKA = "eureka-server-0.0.1"
+        IMAGE_NAME_EUREKA = "eureka-server"
 
-        IMAGE_NAME_GATEWAY = "gateway-0.0.1"
+        IMAGE_NAME_GATEWAY = "gateway"
 
         IMAGE_NAME_ACCOUNT = "account-service"
 
-        IMAGE_NAME_ORDER = "order-service-0.0.1"
+        IMAGE_NAME_ORDER = "order-service"
 
-        IMAGE_NAME_PRODUCT = "product-service-0.0.1"
+        IMAGE_NAME_PRODUCT = "product-service"
 
         // Nombre de la red Docker donde correrán los contenedores, para que
         // order-service pueda resolver "products-service" por nombre DNS
