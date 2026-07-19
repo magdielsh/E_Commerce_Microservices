@@ -497,7 +497,7 @@ pipeline {
             echo "✅ Pipeline completado con éxito. App desplegada"
             emailext (
                 subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: "Build exitoso. Log adjunto.",
+                body: '${SCRIPT, template="groovy-html.template"}',
                 to: 'magdielsh30@gmail.com',
                 attachLog: true,          // adjunta el console log completo
                 compressLog: true         // lo comprime en .gz si es grande
