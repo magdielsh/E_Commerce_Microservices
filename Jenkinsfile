@@ -471,16 +471,19 @@ pipeline {
                            """
                     }
                     if(env.ACCOUNT_CHANGED == 'true'){
-                        sh  """
-                          docker stop account-service || true
-                          docker rm account-service || true
-                          docker run -d \
-                            --name account-service \
-                            --network ${NETWORK} \
-                            -e JWT_SECRET=${JWT_SECRET} \
-                            -p 6589:6589 \
-                            ${IMAGE_NAME_ACCOUNT}:latest
+                        withCredentials([string(credentialsId: 'jwt_secret',
+                                    variable: 'JWT')]) {
+                            sh  """
+                                  docker stop account-service || true
+                                  docker rm account-service || true
+                                  docker run -d \
+                                    --name account-service \
+                                    --network ${NETWORK} \
+                                    -e JWT_SECRET=${JWT} \
+                                    -p 6589:6589 \
+                                    ${IMAGE_NAME_ACCOUNT}:latest
                            """
+                        }
                     }
 
 
