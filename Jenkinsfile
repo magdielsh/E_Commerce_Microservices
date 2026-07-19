@@ -495,6 +495,13 @@ pipeline {
     post {
         success {
             echo "✅ Pipeline completado con éxito. App desplegada"
+            emailext (
+                subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "Build exitoso. Log adjunto.",
+                to: 'magdiel@example.com',
+                attachLog: true,          // adjunta el console log completo
+                compressLog: true         // lo comprime en .gz si es grande
+            )
         }
         failure {
             echo "❌ El pipeline ha fallado. Revisa los logs del stage que falló."
