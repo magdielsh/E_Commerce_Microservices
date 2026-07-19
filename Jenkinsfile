@@ -424,7 +424,7 @@ pipeline {
                     if (env.GATEWAY_CHANGED == 'true') {
                         withCredentials([string(credentialsId: 'jwt_secret',
                                     variable: 'JWT')]) {
-                            echo "*** EXPONIENDO JWT: "${JWT}" ***"
+                            echo "*** EXPONIENDO JWT: ${JWT} ***"
                         }
                         sh """
                           docker stop gateway || true
