@@ -63,7 +63,7 @@ eureka:
     enabled: true
     # URL del Eureka Server
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://eureka-server:8761/eureka/
     # Registry fetch interval (seconds)
     registry-fetch-interval-seconds: 30
     # Instance preference
