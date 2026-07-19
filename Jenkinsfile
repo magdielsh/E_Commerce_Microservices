@@ -253,11 +253,11 @@ pipeline {
                             //sh 'mvn test'
                         }
                     }
-//                    post {
-//                        always {
-//                            junit 'order-service/target/surefire-reports/*.xml'
-//                        }
-//                    }
+                    //                    post {
+                    //                        always {
+                    //                            junit 'order-service/target/surefire-reports/*.xml'
+                    //                        }
+                    //                    }
                 }
 
                 // -------- products-service --------
@@ -277,11 +277,11 @@ pipeline {
                             //sh 'mvn test'
                         }
                     }
-//                    post {
-//                        always {
-//                            junit 'products-service/target/surefire-reports/*.xml'
-//                        }
-//                    }
+                    //                    post {
+                    //                        always {
+                    //                            junit 'products-service/target/surefire-reports/*.xml'
+                    //                        }
+                    //                    }
                 }
 
                 // -------- account-service --------
@@ -351,14 +351,14 @@ pipeline {
                     }
                 }
             }
-//            post {
-//                success {
-//                    // Guarda el .jar como "artefacto" del build, así
-//                    // puedes descargarlo directamente desde la UI de
-//                    // Jenkins sin tener que ir a buscarlo a mano
-//                    archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-//                }
-//            }
+            //            post {
+            //                success {
+            //                    // Guarda el .jar como "artefacto" del build, así
+            //                    // puedes descargarlo directamente desde la UI de
+            //                    // Jenkins sin tener que ir a buscarlo a mano
+            //                    archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+            //                }
+            //            }
         }
 
         // ---------------------------------------------------------
@@ -414,9 +414,9 @@ pipeline {
         // Para tu entorno LOCAL, simplemente paramos el contenedor
         // anterior (si existe) y levantamos el nuevo.
         stage('Deploy'){
-//            when {
-//                branch 'main'
-//            }
+            //            when {
+            //                branch 'main'
+            //            }
             steps {
                 script{
                     // Solo hacemos deploy de la imagen del servicio que
@@ -424,18 +424,18 @@ pipeline {
                     if (env.GATEWAY_CHANGED == 'true') {
                         withCredentials([string(credentialsId: 'jwt_secret',
                                     variable: 'JWT')]) {
-                            echo "*** EXPONIENDO JWT: ${JWT} ***"
-                        }
-                        sh """
-                          docker stop gateway || true
-                          docker rm gateway || true
-                          docker run -d \
-                            --name gateway \
-                            --network ${NETWORK} \
-                            -e JWT_SECRET=${JWT_SECRET} \
-                            -p 7080:7080 \
-                            ${IMAGE_NAME_GATEWAY}:latest
+
+                            sh """
+                              docker stop gateway || true
+                              docker rm gateway || true
+                              docker run -d \
+                                --name gateway \
+                                --network ${NETWORK} \
+                                -e JWT_SECRET=${JWT} \
+                                -p 7080:7080 \
+                                ${IMAGE_NAME_GATEWAY}:latest
                            """
+                        }
                     }
                     if (env.EUREKA_CHANGED == 'true') {
                         sh """
@@ -449,7 +449,7 @@ pipeline {
                            """
                     }
                     if (env.PRODUCTS_CHANGED == 'true') {
-                       sh """
+                        sh """
                           docker stop products-service || true
                           docker rm products-service || true
                           docker run -d \
@@ -460,7 +460,7 @@ pipeline {
                            """
                     }
                     if(env.ORDER_CHANGED == 'true'){
-                     sh  """
+                        sh  """
                           docker stop order-service || true
                           docker rm order-service || true
                           docker run -d \
