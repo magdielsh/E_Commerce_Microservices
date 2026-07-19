@@ -20,7 +20,7 @@ spring:
   # ---------------------------------------------------------------------
   datasource:
     # Driver JDBC de PostgreSQL
-    url: jdbc:postgresql://localhost:5432/user_accounts_mc
+    url: jdbc:postgresql://host.docker.internal:5432/user_accounts_mc
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver

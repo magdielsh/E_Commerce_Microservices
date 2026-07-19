@@ -63,7 +63,7 @@ spring:
   # DATABASE CONFIGURATION (JPA/Hibernate)
   # ---------------------------------------------------------------------
   datasource:
-    url: jdbc:postgresql://localhost:5432/order_service_mc
+    url: jdbc:postgresql://host.docker.internal:5432/order_service_mc
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver

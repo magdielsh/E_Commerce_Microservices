@@ -477,6 +477,7 @@ pipeline {
                           docker run -d \
                             --name account-service \
                             --network ${NETWORK} \
+                            -e JWT_SECRET=${JWT_SECRET} \
                             -p 6589:6589 \
                             ${IMAGE_NAME_ACCOUNT}:latest
                            """
