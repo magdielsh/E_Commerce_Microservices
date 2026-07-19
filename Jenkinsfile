@@ -422,10 +422,9 @@ pipeline {
                     // Solo hacemos deploy de la imagen del servicio que
                     // realmente cambió (o si es la primera vez, ambos)
                     if (env.GATEWAY_CHANGED == 'true') {
-                        withCredentials([string(credentialsId: 'jwt_secret',
-                                    variable: 'JWT')]) {
+                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
 
-                            sh """
+                            sh '''
                               docker stop gateway || true
                               docker rm gateway || true
                               docker run -d \
@@ -434,7 +433,7 @@ pipeline {
                                 -e JWT_SECRET="${JWT}" \
                                 -p 7080:7080 \
                                 ${IMAGE_NAME_GATEWAY}:latest
-                           """
+                           '''
                         }
                     }
                     if (env.EUREKA_CHANGED == 'true') {
@@ -471,9 +470,8 @@ pipeline {
                            """
                     }
                     if(env.ACCOUNT_CHANGED == 'true'){
-                        withCredentials([string(credentialsId: 'jwt_secret',
-                                    variable: 'JWT')]) {
-                            sh  """
+                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
+                            sh  '''
                                   docker stop account-service || true
                                   docker rm account-service || true
                                   docker run -d \
@@ -482,7 +480,7 @@ pipeline {
                                     -e JWT_SECRET="${JWT}" \
                                     -p 6589:6589 \
                                     ${IMAGE_NAME_ACCOUNT}:latest
-                           """
+                           '''
                         }
                     }
 
