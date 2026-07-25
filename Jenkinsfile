@@ -168,7 +168,6 @@ pipeline {
 
                 // -------- Gateway --------
                 stage('gateway') {
-                    echo env.GATEWAY_CHANGED
                     // "when" hace que este stage entero se salte si la
                     // condición es falsa. expression{} evalúa código Groovy.
                     when {
@@ -323,6 +322,7 @@ pipeline {
             agent any
             steps {
                 script{
+                    echo env.GATEWAY_CHANGED
                     // Solo empaquetamos/construimos imagen del servicio que
                     // realmente cambió (o si es la primera vez, ambos)
                     if(env.GATEWAY_CHANGED == 'true'){
