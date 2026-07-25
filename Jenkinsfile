@@ -172,7 +172,7 @@ pipeline {
                     // condición es falsa. expression{} evalúa código Groovy.
 
                     when {
-                        echo "Compilando: ${GATEWAY_CHANGED}"
+                        echo "Compilando: ${env.GATEWAY_CHANGED}"
                         expression { env.GATEWAY_CHANGED == 'true' }
                     }
                     // Este stage corre DENTRO de un contenedor Docker con
