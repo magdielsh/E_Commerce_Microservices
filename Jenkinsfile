@@ -125,7 +125,9 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
+                    echo "=== ARCHIVOS MODIFICADOS ==="
                     echo "${changedFiles}"
+                    echo "============================"
 
 //                    env.ACCOUNT_CHANGED = sh(
 //                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^account-service/' && echo true || echo false",
@@ -147,6 +149,9 @@ pipeline {
                         env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
                     }
+
+                    // 👇 CONTROL 1: justo después de asignarlo
+                    echo "CONTROL 1 - GATEWAY_CHANGED tras deteccion: ${env.GATEWAY_CHANGED}"
 
                     if (changedFiles.contains('order-service/')){
                         env.ORDER_CHANGED = 'true'
@@ -191,7 +196,8 @@ pipeline {
                         }
                     }
                     steps {
-                        echo ("ENTRE A ESTA PINGA DE GATEWAY")
+                        // 👇 CONTROL 2: justo al entrar al stage que depende de la condición
+                        echo "CONTROL 2 - GATEWAY_CHANGED en Build&Test: ${env.GATEWAY_CHANGED}"
                         buildSpringService(servicePath: 'gateway', runTests: 'false')
                         // "dir()" cambia el directorio de trabajo solo para
                         // los comandos que están dentro de sus llaves.
@@ -325,7 +331,8 @@ pipeline {
             agent any
             steps {
                 script{
-                    echo env.GATEWAY_CHANGED
+                    // 👇 CONTROL 3
+                    echo "CONTROL 3 - GATEWAY_CHANGED en Package: ${env.GATEWAY_CHANGED}"
                     // Solo empaquetamos/construimos imagen del servicio que
                     // realmente cambió (o si es la primera vez, ambos)
                     if(env.GATEWAY_CHANGED == 'true'){
