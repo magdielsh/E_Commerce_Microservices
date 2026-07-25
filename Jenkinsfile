@@ -119,11 +119,13 @@ pipeline {
                     // el último commit/push cae dentro de esa carpeta.
                     // Guardamos el resultado (true/false) en variables que
                     // usaremos después en los "when" de cada stage.
+                    def previousCommit = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: sh(script: 'git rev-parse HEAD~1', returnStdout: true).trim()
                     def changedFiles = sh(
-                        script: 'git diff --name-only HEAD~1 HEAD',
+                        script: "git diff --name-only ${previousCommit} HEAD",
                         returnStdout: true
                     ).trim()
 
+                    echo "${changedFiles}"
 
 //                    env.ACCOUNT_CHANGED = sh(
 //                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^account-service/' && echo true || echo false",
@@ -145,14 +147,6 @@ pipeline {
                         env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
                     }
-
-                    env.GATEWAY_CHANGED = 'true'
-
-                    echo "1 -> ${env.GATEWAY_CHANGED}"
-
-                    env['GATEWAY_CHANGED'] = 'true'
-
-                    echo "2 -> ${env.GATEWAY_CHANGED}"
 
                     if (changedFiles.contains('order-service/')){
                         env.ORDER_CHANGED = 'true'
