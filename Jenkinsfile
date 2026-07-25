@@ -129,6 +129,12 @@ pipeline {
                     echo "${changedFiles}"
                     echo "============================"
 
+                    // 👇 aislamos el resultado del contains ANTES del if
+                    def gwMatch = changedFiles.contains('gateway/')
+                    echo "DEBUG -> contains('gateway/') = ${gwMatch}"
+                    echo "DEBUG -> longitud changedFiles = ${changedFiles.length()}"
+                    echo "DEBUG -> bytes = ${changedFiles.bytes}"
+
 //                    env.ACCOUNT_CHANGED = sh(
 //                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^account-service/' && echo true || echo false",
 //                        returnStdout: true
@@ -145,7 +151,7 @@ pipeline {
                         echo "Eureka-Server cambio, se compilara Nuevamente"
                     }
 
-                    if (changedFiles.contains('gateway/')){
+                    if (gwMatch){
                         env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
                     }
