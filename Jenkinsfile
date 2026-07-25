@@ -48,7 +48,7 @@ pipeline {
         // sería algo como "tuusuario". Si usas uno privado, la URL completa.
         REGISTRY = "magdielsh"
 
-        //JWT_SECRET = credentials('jwt_secret')
+        JWT_SECRET = credentials('jwt_secret')
 
         // Usamos el número de build como tag, para que cada imagen sea
         // trazable a un build concreto de Jenkins (útil para hacer rollback:
@@ -375,10 +375,17 @@ pipeline {
                     // Solo construimos imagen del servicio que
                     // realmente cambió (o si es la primera vez, ambos)
                     if(env.GATEWAY_CHANGED == 'true'){
-                        dir('gateway'){
-                            sh "docker build -t ${IMAGE_NAME_GATEWAY}:${IMAGE_TAG} ."
-                            sh "docker tag ${IMAGE_NAME_GATEWAY}:${IMAGE_TAG} ${IMAGE_NAME_GATEWAY}:latest"
-                        }
+                        deployDockerService(
+                            servicePath: 'gateway',
+                            imageName: 'gateway',
+                            jwtSecretId: '${JWT_SECRET}',
+                            jenkinsNet: '${NETWORK}',
+                            imagePort: '7080'
+                        )
+//                        dir('gateway'){
+//                            sh "docker build -t ${IMAGE_NAME_GATEWAY}:${IMAGE_TAG} ."
+//                            sh "docker tag ${IMAGE_NAME_GATEWAY}:${IMAGE_TAG} ${IMAGE_NAME_GATEWAY}:latest"
+//                        }
                     }
                     if(env.EUREKA_CHANGED == 'true'){
                         dir('eureka-server'){
@@ -425,21 +432,21 @@ pipeline {
                 script{
                     // Solo hacemos deploy de la imagen del servicio que
                     // realmente cambió (o si es la primera vez, ambos)
-                    if (env.GATEWAY_CHANGED == 'true') {
-                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
-
-                            sh '''
-                              docker stop gateway || true
-                              docker rm gateway || true
-                              docker run -d \
-                                --name gateway \
-                                --network ${NETWORK} \
-                                -e JWT_SECRET="${JWT}" \
-                                -p 7080:7080 \
-                                ${IMAGE_NAME_GATEWAY}:latest
-                           '''
-                        }
-                    }
+//                    if (env.GATEWAY_CHANGED == 'true') {
+//                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
+//
+//                            sh '''
+//                              docker stop gateway || true
+//                              docker rm gateway || true
+//                              docker run -d \
+//                                --name gateway \
+//                                --network ${NETWORK} \
+//                                -e JWT_SECRET="${JWT}" \
+//                                -p 7080:7080 \
+//                                ${IMAGE_NAME_GATEWAY}:latest
+//                           '''
+//                        }
+//                    }
                     if (env.EUREKA_CHANGED == 'true') {
                         sh """
                           docker stop eureka-server || true
