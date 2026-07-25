@@ -143,7 +143,6 @@ pipeline {
                     if (changedFiles.contains('gateway/')){
                         env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
-                        echo "Gateway cambio, ${GATEWAY_CHANGED}"
                     }
 
                     if (changedFiles.contains('order-service/')){
@@ -169,9 +168,9 @@ pipeline {
 
                 // -------- Gateway --------
                 stage('gateway') {
+                    echo env.GATEWAY_CHANGED
                     // "when" hace que este stage entero se salte si la
                     // condición es falsa. expression{} evalúa código Groovy.
-
                     when {
                         expression { env.GATEWAY_CHANGED == 'true' }
                     }
