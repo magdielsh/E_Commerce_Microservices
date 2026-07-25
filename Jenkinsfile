@@ -124,9 +124,6 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    echo "Changed files:"
-                    echo changedFiles
-                    echo "Gateway antes: ${env.GATEWAY_CHANGED}"
 
 //                    env.ACCOUNT_CHANGED = sh(
 //                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^account-service/' && echo true || echo false",
@@ -149,7 +146,13 @@ pipeline {
                         echo "Gateway cambio, se compilara Nuevamente"
                     }
 
-                    echo "Gateway después: ${env.GATEWAY_CHANGED}"
+                    env.GATEWAY_CHANGED = 'true'
+
+                    echo "1 -> ${env.GATEWAY_CHANGED}"
+
+                    env['GATEWAY_CHANGED'] = 'true'
+
+                    echo "2 -> ${env.GATEWAY_CHANGED}"
 
                     if (changedFiles.contains('order-service/')){
                         env.ORDER_CHANGED = 'true'
