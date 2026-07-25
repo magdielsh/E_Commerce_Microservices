@@ -81,7 +81,7 @@ public class ProductFeignConfig {
 
                 Exception ex = new Exception();
                 // Mapeamos el status HTTP a la excepción de dominio correcta
-               switch (response.status()) {
+                switch (response.status()) {
 
                     case 404:
                         // products-service devolvió: { "error": "NOT_FOUND", "message": "Producto no encontrado..." }
@@ -90,56 +90,64 @@ public class ProductFeignConfig {
                         ex = new OrderExceptions.ProductNotFoundException(
                                 extractMessage(errorBody, objectMapper)
                         );
+                        break;
 
 
                     case 409:
-                            // products-service devolvió: { "error": "INSUFFICIENT_STOCK", ... }
-                                new OrderExceptions.StockConflictException(
-                                        extractMessage(errorBody, objectMapper)
-                                );
+                        // products-service devolvió: { "error": "INSUFFICIENT_STOCK", ... }
+                        ex = new OrderExceptions.StockConflictException(
+                                extractMessage(errorBody, objectMapper)
+                        );
+                        break;
 
-                    case 400: new OrderExceptions.BadRequestException(
+                    case 400:
+                        ex = new OrderExceptions.BadRequestException(
                                 "Solicitud inválida a products-service: " + errorBody
                         );
+                        break;
 
                     case 503, 502, 504:
-                            /*
-                             * RetryableException: le indica a Feign y a Resilience4j
-                             * que ESTE ERROR ES TRANSITORIO y se puede reintentar.
-                             *
-                             * El Circuit Breaker lo registra como fallo.
-                             * Si hay Retry configurado, lo reintenta antes de abrir el CB.
-                             *
-                             * Parámetros de RetryableException:
-                             *   - status: código HTTP
-                             *   - message: descripción del error
-                             *   - retryAfter: Date (null = reintentar inmediatamente)
-                             *   - httpMethod: método HTTP de la request original
-                             *   - request: la request original
-                             */
-                                new RetryableException(
-                                        response.status(),
-                                        "products-service no disponible (HTTP " + response.status() + ")",
-                                        response.request().httpMethod(),
-                                        (Long) null,
-                                        response.request()
-                                );
+                        /*
+                         * RetryableException: le indica a Feign y a Resilience4j
+                         * que ESTE ERROR ES TRANSITORIO y se puede reintentar.
+                         *
+                         * El Circuit Breaker lo registra como fallo.
+                         * Si hay Retry configurado, lo reintenta antes de abrir el CB.
+                         *
+                         * Parámetros de RetryableException:
+                         *   - status: código HTTP
+                         *   - message: descripción del error
+                         *   - retryAfter: Date (null = reintentar inmediatamente)
+                         *   - httpMethod: método HTTP de la request original
+                         *   - request: la request original
+                         */
+                        ex = new RetryableException(
+                                response.status(),
+                                "products-service no disponible (HTTP " + response.status() + ")",
+                                response.request().httpMethod(),
+                                (Long) null,
+                                response.request()
+                        );
+                        break;
 
                     case 500:
-                            // Error interno del servidor → no es retryable (probablemente un bug)
-                            // El CB lo registrará como fallo
-                                new OrderExceptions.ServiceException(
-                                        "Error interno en products-service: " + errorBody
-                                );
+                        // Error interno del servidor → no es retryable (probablemente un bug)
+                        // El CB lo registrará como fallo
+                        ex = new OrderExceptions.ServiceException(
+                                "Error interno en products-service: " + errorBody
+                        );
+                        break;
 
                     default:
-                            // Cualquier otro error inesperado
-                                new OrderExceptions.ServiceException(
-                                        "Error inesperado en products-service (HTTP " + response.status() + "): " + errorBody
-                                );
-                };
+                        // Cualquier otro error inesperado
+                        ex = new OrderExceptions.ServiceException(
+                                "Error inesperado en products-service (HTTP " + response.status() + "): " + errorBody
+                        );
+                        break;
+                }
+                ;
 
-               return ex;
+                return ex;
             }
 
             /** Lee el body de la respuesta HTTP como String */

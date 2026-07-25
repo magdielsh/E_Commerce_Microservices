@@ -9,6 +9,8 @@
 // Sintaxis: "Declarative Pipeline" (la forma moderna y recomendada,
 // frente a la sintaxis antigua "Scripted Pipeline" basada en Groovy puro)
 
+@Library('spring-microservices-lib') _
+
 pipeline {
 
     // agent any = este pipeline puede ejecutarse en cualquier agente
@@ -107,48 +109,39 @@ pipeline {
                     // el último commit/push cae dentro de esa carpeta.
                     // Guardamos el resultado (true/false) en variables que
                     // usaremos después en los "when" de cada stage.
-                    env.ACCOUNT_CHANGED = sh(
-                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^account-service/' && echo true || echo false",
-                        returnStdout: true
-                    ).trim()
-                    env.GATEWAY_CHANGED = sh(
-                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^gateway/' && echo true || echo false",
+                    def changedFiles = sh(
+                        script: 'git diff --name-only HEAD~1 HEAD',
                         returnStdout: true
                     ).trim()
 
-                    env.EUREKA_CHANGED = sh(
-                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^eureka-server/' && echo true || echo false",
-                        returnStdout: true
-                    ).trim()
-
-                    env.ORDER_CHANGED = sh(
-                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^order-service/' && echo true || echo false",
-                        returnStdout: true
-                    ).trim()
-
-                    env.PRODUCTS_CHANGED = sh(
-                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^product-service/' && echo true || echo false",
-                        returnStdout: true
-                    ).trim()
+//                    env.ACCOUNT_CHANGED = sh(
+//                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^account-service/' && echo true || echo false",
+//                        returnStdout: true
+//                    ).trim()
 
                     // echo simplemente imprime en el log de consola, para
                     // que puedas ver de un vistazo qué se va a construir.
-                    if (env.ACCOUNT_CHANGED == 'true'){
+                    if (changedFiles.contains('account-service/')){
+                        env.ACCOUNT_CHANGED = 'true'
                         echo "Account-Service cambio, se compilara Nuevamente"
                     }
-                    if (env.EUREKA_CHANGED == 'true'){
+                    if (changedFiles.contains('eureka-server/')){
+                        env.EUREKA_CHANGED = 'true'
                         echo "Eureka-Server cambio, se compilara Nuevamente"
                     }
 
-                    if (env.GATEWAY_CHANGED == 'true'){
+                    if (changedFiles.contains('gateway/')){
+                        env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
                     }
 
-                    if (env.ORDER_CHANGED == 'true'){
+                    if (changedFiles.contains('order-service/')){
+                        env.env.ORDER_CHANGED = 'true'
                         echo "Order-Service cambio, se compilara Nuevamente"
                     }
 
-                    if (env.PRODUCTS_CHANGED == 'true'){
+                    if (changedFiles.contains('product-service/')){
+                        env.PRODUCTS_CHANGED = 'true'
                         echo "Product-Service cambio, se compilara Nuevamente"
                     }
                 }
@@ -185,20 +178,21 @@ pipeline {
                         }
                     }
                     steps {
+                        buildSpringService(servicePath: 'gateway', runTests: 'false')
                         // "dir()" cambia el directorio de trabajo solo para
                         // los comandos que están dentro de sus llaves.
-                        dir('gateway') {
-                            // -DskipTests Compila sin correr tests todavía (los tests
-                            // van en el siguiente sh, para separar reportes)
-                            sh 'mvn clean compile -DskipTests'
-
-                            // Aquí corren tus tests con WireMock: los stubs
-                            // que verifican Feign + Resilience4j (retries,
-                            // circuit breaker) se ejecutan en este paso,
-                            // sin necesidad de que products-service real
-                            // esté levantado.
-                            //sh 'mvn test'
-                        }
+//                        dir('gateway') {
+//                            // -DskipTests Compila sin correr tests todavía (los tests
+//                            // van en el siguiente sh, para separar reportes)
+//                            sh 'mvn clean compile -DskipTests'
+//
+//                            // Aquí corren tus tests con WireMock: los stubs
+//                            // que verifican Feign + Resilience4j (retries,
+//                            // circuit breaker) se ejecutan en este paso,
+//                            // sin necesidad de que products-service real
+//                            // esté levantado.
+//                            //sh 'mvn test'
+//                        }
                     }
                     //                    post {
                     //                        // "always" se ejecuta pase lo que pase (tests OK o KO).
