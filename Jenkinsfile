@@ -143,10 +143,11 @@ pipeline {
                     if (changedFiles.contains('gateway/')){
                         env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
+                        echo "Gateway cambio, ${GATEWAY_CHANGED}"
                     }
 
                     if (changedFiles.contains('order-service/')){
-                        env.env.ORDER_CHANGED = 'true'
+                        env.ORDER_CHANGED = 'true'
                         echo "Order-Service cambio, se compilara Nuevamente"
                     }
 
@@ -172,7 +173,6 @@ pipeline {
                     // condición es falsa. expression{} evalúa código Groovy.
 
                     when {
-                        echo "Compilando: ${env.GATEWAY_CHANGED}"
                         expression { env.GATEWAY_CHANGED == 'true' }
                     }
                     // Este stage corre DENTRO de un contenedor Docker con
