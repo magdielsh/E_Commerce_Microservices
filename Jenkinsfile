@@ -55,16 +55,6 @@ pipeline {
         // "vuelve a desplegar la imagen del build 42").
         IMAGE_TAG = "${env.BUILD_NUMBER}"
 
-        ACCOUNT_CHANGED = 'false'
-
-        EUREKA_CHANGED = 'false'
-
-        GATEWAY_CHANGED = 'false'
-
-        ORDER_CHANGED = 'false'
-
-        PRODUCTS_CHANGED = 'false'
-
         // Nombre que le daremos a la imagenes de Docker resultantes
         IMAGE_NAME_EUREKA = "eureka-server"
 
