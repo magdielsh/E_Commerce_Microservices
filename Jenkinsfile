@@ -188,6 +188,7 @@ pipeline {
                         }
                     }
                     steps {
+                        echo ("ENTRE A ESTA PINGA DE GATEWAY")
                         buildSpringService(servicePath: 'gateway', runTests: 'false')
                         // "dir()" cambia el directorio de trabajo solo para
                         // los comandos que están dentro de sus llaves.
