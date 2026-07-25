@@ -170,6 +170,7 @@ pipeline {
                 stage('gateway') {
                     // "when" hace que este stage entero se salte si la
                     // condición es falsa. expression{} evalúa código Groovy.
+                    echo "Compilando ${env.GATEWAY_CHANGED}"
                     when {
                         expression { env.GATEWAY_CHANGED == 'true' }
                     }
