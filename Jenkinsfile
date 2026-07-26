@@ -421,10 +421,7 @@ pipeline {
             //                compressLog: true         // lo comprime en .gz si es grande
             //            )
         }
-        unstable {
-            echo "⚠️ (Unstable) Hay cosas que han fallado. Revisa los logs del stage que falló."
-            notify_BuildResult(recipients: 'magdielsh30@gmail.com')
-        }unsuccessful {
+        unsuccessful {
             echo "⚠️ (Unsuccessful) Hay cosas que han fallado. Revisa los logs del stage que falló."
             notify_BuildResult(recipients: 'magdielsh30@gmail.com')
         }
