@@ -116,11 +116,11 @@ pipeline {
                     env.ORDER_CHANGED = changedFiles.contains('order-service/') ? 'true' : 'false'
                     env.PRODUCTS_CHANGED  = changedFiles.contains('product-service/')  ? 'true' : 'false'
 
-                    echo "Account-Service cambió, se compilara Nuevamente: ${env.ACCOUNT_CHANGED}"
-                    echo "Eureka-Server, se compilara Nuevamente: ${env.EUREKA_CHANGED}"
-                    echo "Gateway cambió, se compilara Nuevamente: ${env.GATEWAY_CHANGED}"
-                    echo "Order-Service cambió, se compilara Nuevamente: ${env.ORDER_CHANGED}"
-                    echo "Product-Service cambió, se compilara Nuevamente: ${env.PRODUCTS_CHANGED}"
+                    echo env.ACCOUNT_CHANGED == 'true' ? "✅ Account-Service cambió, se compilara Nuevamente" : "❌ Account-Service sin cambios"
+                    echo env.EUREKA_CHANGED == 'true' ? "✅ Eureka-Server cambió, se compilara Nuevamente" : "❌ Eureka-Server sin cambios"
+                    echo env.GATEWAY_CHANGED == 'true' ? "✅ Gateway cambió, se compilara Nuevamente" : "❌ Gateway sin cambios"
+                    echo env.ORDER_CHANGED == 'true' ? "✅ Order-Service cambió, se compilara Nuevamente" : "❌ Order-Service sin cambios"
+                    echo env.PRODUCTS_CHANGED == 'true' ? "✅ Product-Service cambió, se compilara Nuevamente" : "❌ Product-Service sin cambios"
 
                     //                    if (changedFiles.contains('account-service/')){
                     //                        env.ACCOUNT_CHANGED = 'true'
@@ -422,7 +422,7 @@ pipeline {
             //            )
         }
         unsuccessful {
-            echo "⚠️ (Unsuccessful) Hay cosas que han fallado. Revisa los logs del stage que falló."
+            echo "⚠️ Hay cosas que han fallado. Revisa los logs del stage que falló."
             notify_BuildResult(recipients: 'magdielsh30@gmail.com')
         }
         failure {
