@@ -37,7 +37,7 @@ pipeline {
 
         // Solo conserva el historial de los últimos 15 builds, para no
         // llenar el disco de logs y artefactos viejos.
-        buildDiscarder(logRotator(numToKeepStr: '15'))
+        buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
     // ------------------------------------------------------------
@@ -48,11 +48,6 @@ pipeline {
         // sería algo como "tuusuario". Si usas uno privado, la URL completa.
         REGISTRY = "magdielsh"
 
-        JWT_SECRET = credentials('jwt_secret')
-
-        // Usamos el número de build como tag, para que cada imagen sea
-        // trazable a un build concreto de Jenkins (útil para hacer rollback:
-        // "vuelve a desplegar la imagen del build 42").
         IMAGE_TAG = "${env.BUILD_NUMBER}"
 
         // Nombre que le daremos a la imagenes de Docker resultantes
@@ -115,23 +110,6 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    echo "=== ARCHIVOS MODIFICADOS ==="
-                    echo "${changedFiles}"
-                    echo "============================"
-
-                    // 👇 aislamos el resultado del contains ANTES del if
-                    def gwMatch = changedFiles.contains('gateway/')
-                    echo "DEBUG -> contains('gateway/') = ${gwMatch}"
-                    echo "DEBUG -> longitud changedFiles = ${changedFiles.length()}"
-                    echo "DEBUG -> bytes = ${changedFiles.bytes}"
-
-//                    env.ACCOUNT_CHANGED = sh(
-//                        script: "git diff --name-only HEAD~1 HEAD | grep -q '^account-service/' && echo true || echo false",
-//                        returnStdout: true
-//                    ).trim()
-
-                    // echo simplemente imprime en el log de consola, para
-                    // que puedas ver de un vistazo qué se va a construir.
                     if (changedFiles.contains('account-service/')){
                         env.ACCOUNT_CHANGED = 'true'
                         echo "Account-Service cambio, se compilara Nuevamente"
@@ -141,13 +119,10 @@ pipeline {
                         echo "Eureka-Server cambio, se compilara Nuevamente"
                     }
 
-                    if (gwMatch){
+                    if (changedFiles.contains('gategay/')){
                         env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
                     }
-
-                    // 👇 CONTROL 1: justo después de asignarlo
-                    echo "CONTROL 1 - GATEWAY_CHANGED tras deteccion: ${env.GATEWAY_CHANGED}"
 
                     if (changedFiles.contains('order-service/')){
                         env.ORDER_CHANGED = 'true'
@@ -163,13 +138,12 @@ pipeline {
         }
 
         // ==========================================================
-        // STAGE 2: Build + Test en PARALELO para ambos servicios
+        // STAGE 2: Build + Test en PARALELO para todos los servicios
         // ==========================================================
         // "parallel" hace que los dos bloques internos corran a la vez,
         // no uno detrás del otro. Ahorra tiempo cuando ambos cambiaron.
         stage('Build & Test') {
             parallel {
-
                 // -------- Gateway --------
                 stage('gateway') {
                     // "when" hace que este stage entero se salte si la
@@ -192,23 +166,7 @@ pipeline {
                         }
                     }
                     steps {
-                        // 👇 CONTROL 2: justo al entrar al stage que depende de la condición
-                        echo "CONTROL 2 - GATEWAY_CHANGED en Build&Test: ${env.GATEWAY_CHANGED}"
-                        buildSpringService(servicePath: 'gateway', runTests: false)
-                        // "dir()" cambia el directorio de trabajo solo para
-                        // los comandos que están dentro de sus llaves.
-//                        dir('gateway') {
-//                            // -DskipTests Compila sin correr tests todavía (los tests
-//                            // van en el siguiente sh, para separar reportes)
-//                            sh 'mvn clean compile -DskipTests'
-//
-//                            // Aquí corren tus tests con WireMock: los stubs
-//                            // que verifican Feign + Resilience4j (retries,
-//                            // circuit breaker) se ejecutan en este paso,
-//                            // sin necesidad de que products-service real
-//                            // esté levantado.
-//                            //sh 'mvn test'
-//                        }
+                        build_test_SpringService(servicePath: 'gateway', runTests: false)
                     }
                     //                    post {
                     //                        // "always" se ejecuta pase lo que pase (tests OK o KO).
@@ -234,16 +192,8 @@ pipeline {
                         }
                     }
                     steps {
-                        dir('eureka-server') {
-                            sh 'mvn clean compile -DskipTests'
-                            //sh 'mvn test'
-                        }
+                        build_test_SpringService(servicePath: 'eureka-server', runTests: false)
                     }
-                    //                    post {
-                    //                        always {
-                    //                            junit 'order-service/target/surefire-reports/*.xml'
-                    //                        }
-                    //                    }
                 }
 
                 // -------- order-service --------
@@ -258,16 +208,8 @@ pipeline {
                         }
                     }
                     steps {
-                        dir('order-service') {
-                            sh 'mvn clean compile -DskipTests'
-                            //sh 'mvn test'
-                        }
+                        build_test_SpringService(servicePath: 'order-service', runTests: false)
                     }
-                    //                    post {
-                    //                        always {
-                    //                            junit 'order-service/target/surefire-reports/*.xml'
-                    //                        }
-                    //                    }
                 }
 
                 // -------- products-service --------
@@ -282,16 +224,8 @@ pipeline {
                         }
                     }
                     steps {
-                        dir('product-service') {
-                            sh 'mvn clean compile -DskipTests'
-                            //sh 'mvn test'
-                        }
+                        build_test_SpringService(servicePath: 'product-service', runTests: false)
                     }
-                    //                    post {
-                    //                        always {
-                    //                            junit 'products-service/target/surefire-reports/*.xml'
-                    //                        }
-                    //                    }
                 }
 
                 // -------- account-service --------
@@ -306,16 +240,8 @@ pipeline {
                         }
                     }
                     steps {
-                        dir('account-service') {
-                            sh 'mvn clean compile -DskipTests'
-                            //sh 'mvn test'
-                        }
+                        build_test_SpringService(servicePath: 'account-service', runTests: false)
                     }
-                    //                    post {
-                    //                        always {
-                    //                            junit 'products-service/target/surefire-reports/*.xml'
-                    //                        }
-                    //                    }
                 }
             }
         }
@@ -327,50 +253,23 @@ pipeline {
             agent any
             steps {
                 script{
-                    // 👇 CONTROL 3
-                    echo "CONTROL 3 - GATEWAY_CHANGED en Package: ${env.GATEWAY_CHANGED}"
-                    // Solo empaquetamos/construimos imagen del servicio que
-                    // realmente cambió (o si es la primera vez, ambos)
                     if(env.GATEWAY_CHANGED == 'true'){
-                        dir('gateway'){
-                            sh 'mvn package -DskipTests'
-                            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                        }
+                        package_SpringService(servicePath: 'gateway')
                     }
                     if(env.EUREKA_CHANGED == 'true'){
-                        dir('eureka-server'){
-                            sh 'mvn package -DskipTests'
-                            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                        }
+                        package_SpringService(servicePath: 'eureka-server')
                     }
                     if(env.ORDER_CHANGED == 'true'){
-                        dir('order-service'){
-                            sh 'mvn package -DskipTests'
-                            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                        }
+                        package_SpringService(servicePath: 'order-service')
                     }
                     if (env.PRODUCTS_CHANGED == 'true') {
-                        dir('product-service') {
-                            sh 'mvn package -DskipTests'
-                            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                        }
+                        package_SpringService(servicePath: 'product-service')
                     }
                     if (env.ACCOUNT_CHANGED == 'true') {
-                        dir('account-service') {
-                            sh 'mvn package -DskipTests'
-                            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                        }
+                        package_SpringService(servicePath: 'account-service')
                     }
                 }
             }
-            //            post {
-            //                success {
-            //                    // Guarda el .jar como "artefacto" del build, así
-            //                    // puedes descargarlo directamente desde la UI de
-            //                    // Jenkins sin tener que ir a buscarlo a mano
-            //                    archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-            //                }
-            //            }
         }
 
         // ---------------------------------------------------------
@@ -380,44 +279,20 @@ pipeline {
             agent any
             steps {
                 script{
-                    // Solo construimos imagen del servicio que
-                    // realmente cambió (o si es la primera vez, ambos)
                     if(env.GATEWAY_CHANGED == 'true'){
-                        deployDockerService(
-                            servicePath: 'gateway',
-                            imageName: 'gateway',
-                            jwtSecret: 'true',
-                            jenkinsNet: "${NETWORK}",
-                            imagePort: '7080'
-                        )
-//                        dir('gateway'){
-//                            sh "docker build -t ${IMAGE_NAME_GATEWAY}:${IMAGE_TAG} ."
-//                            sh "docker tag ${IMAGE_NAME_GATEWAY}:${IMAGE_TAG} ${IMAGE_NAME_GATEWAY}:latest"
-//                        }
+                        build_DockerService(servicePath: 'gateway', imageName: "${IMAGE_NAME_GATEWAY}")
                     }
                     if(env.EUREKA_CHANGED == 'true'){
-                        dir('eureka-server'){
-                            sh "docker build -t ${IMAGE_NAME_EUREKA}:${IMAGE_TAG} ."
-                            sh "docker tag ${IMAGE_NAME_EUREKA}:${IMAGE_TAG} ${IMAGE_NAME_EUREKA}:latest"
-                        }
+                        build_DockerService(servicePath: 'eureka-server', imageName: "${IMAGE_NAME_EUREKA}")
                     }
                     if(env.ORDER_CHANGED == 'true'){
-                        dir('order-service'){
-                            sh "docker build -t ${IMAGE_NAME_ORDER}:${IMAGE_TAG} ."
-                            sh "docker tag ${IMAGE_NAME_ORDER}:${IMAGE_TAG} ${IMAGE_NAME_ORDER}:latest"
-                        }
+                        build_DockerService(servicePath: 'order-service', imageName: "${IMAGE_NAME_ORDER}")
                     }
                     if (env.PRODUCTS_CHANGED == 'true') {
-                        dir('product-service') {
-                            sh "docker build -t ${IMAGE_NAME_PRODUCT}:${IMAGE_TAG} ."
-                            sh "docker tag ${IMAGE_NAME_PRODUCT}:${IMAGE_TAG} ${IMAGE_NAME_PRODUCT}:latest"
-                        }
+                        build_DockerService(servicePath: 'product-service', imageName: "${IMAGE_NAME_PRODUCT}")
                     }
                     if (env.ACCOUNT_CHANGED == 'true') {
-                        dir('account-service') {
-                            sh "docker build -t ${IMAGE_NAME_ACCOUNT}:${IMAGE_TAG} ."
-                            sh "docker tag ${IMAGE_NAME_ACCOUNT}:${IMAGE_TAG} ${IMAGE_NAME_ACCOUNT}:latest"
-                        }
+                        build_DockerService(servicePath: 'account-service', imageName: "${IMAGE_NAME_ACCOUNT}")
                     }
                 }
             }
@@ -440,70 +315,72 @@ pipeline {
                 script{
                     // Solo hacemos deploy de la imagen del servicio que
                     // realmente cambió (o si es la primera vez, ambos)
-//                    if (env.GATEWAY_CHANGED == 'true') {
-//                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
-//
-//                            sh '''
-//                              docker stop gateway || true
-//                              docker rm gateway || true
-//                              docker run -d \
-//                                --name gateway \
-//                                --network ${NETWORK} \
-//                                -e JWT_SECRET="${JWT}" \
-//                                -p 7080:7080 \
-//                                ${IMAGE_NAME_GATEWAY}:latest
-//                           '''
-//                        }
-//                    }
+                    if (env.GATEWAY_CHANGED == 'true') {
+                        deploy_DockerService(
+                            servicePath: 'gateway',
+                            imageName: "${IMAGE_NAME_GATEWAY}",
+                            jwtSecret: true,
+                            jenkinsNet: "${NETWORK}",
+                            imagePort: '7080'
+                        )
+                    }
                     if (env.EUREKA_CHANGED == 'true') {
-                        sh """
-                          docker stop eureka-server || true
-                          docker rm eureka-server || true
-                          docker run -d \
-                            --name eureka-server \
-                            --network ${NETWORK} \
-                            -p 8761:8761 \
-                            ${IMAGE_NAME_EUREKA}:latest
-                           """
+                        deploy_DockerService(
+                            servicePath: 'eureka-server',
+                            imageName: "${IMAGE_NAME_EUREKA}",
+                            jwtSecret: false,
+                            jenkinsNet: "${NETWORK}",
+                            imagePort: '8761'
+                        )
                     }
                     if (env.PRODUCTS_CHANGED == 'true') {
-                        sh """
-                          docker stop products-service || true
-                          docker rm products-service || true
-                          docker run -d \
-                            --name products-service \
-                            --network ${NETWORK} \
-                            -p 7095:7095 \
-                            ${IMAGE_NAME_PRODUCT}:latest
-                           """
+                        deploy_DockerService(
+                            servicePath: 'products-service',
+                            imageName: "${IMAGE_NAME_PRODUCT}",
+                            jwtSecret: false,
+                            jenkinsNet: "${NETWORK}",
+                            imagePort: '7095'
+                        )
                     }
                     if(env.ORDER_CHANGED == 'true'){
-                        sh  """
-                          docker stop order-service || true
-                          docker rm order-service || true
-                          docker run -d \
-                            --name order-service \
-                            --network ${NETWORK} \
-                            -p 7198:7198 \
-                            ${IMAGE_NAME_ORDER}:latest
-                           """
+                        deploy_DockerService(
+                            servicePath: 'order-service',
+                            imageName: "${IMAGE_NAME_ORDER}",
+                            jwtSecret: false,
+                            jenkinsNet: "${NETWORK}",
+                            imagePort: '7198'
+                        )
+                        //                        sh  """
+                        //                          docker stop order-service || true
+                        //                          docker rm order-service || true
+                        //                          docker run -d \
+                        //                            --name order-service \
+                        //                            --network ${NETWORK} \
+                        //                            -p 7198:7198 \
+                        //                            ${IMAGE_NAME_ORDER}:latest
+                        //                           """
                     }
                     if(env.ACCOUNT_CHANGED == 'true'){
-                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
-                            sh  '''
-                                  docker stop account-service || true
-                                  docker rm account-service || true
-                                  docker run -d \
-                                    --name account-service \
-                                    --network ${NETWORK} \
-                                    -e JWT_SECRET="${JWT}" \
-                                    -p 6589:6589 \
-                                    ${IMAGE_NAME_ACCOUNT}:latest
-                           '''
-                        }
+                        deploy_DockerService(
+                            servicePath: 'account-service',
+                            imageName: "${IMAGE_NAME_ACCOUNT}",
+                            jwtSecret: true,
+                            jenkinsNet: "${NETWORK}",
+                            imagePort: '6589'
+                        )
+                        //                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
+                        //                            sh  '''
+                        //                                  docker stop account-service || true
+                        //                                  docker rm account-service || true
+                        //                                  docker run -d \
+                        //                                    --name account-service \
+                        //                                    --network ${NETWORK} \
+                        //                                    -e JWT_SECRET="${JWT}" \
+                        //                                    -p 6589:6589 \
+                        //                                    ${IMAGE_NAME_ACCOUNT}:latest
+                        //                           '''
+                        //                        }
                     }
-
-
                 }
             }
         }
@@ -514,20 +391,20 @@ pipeline {
     post {
         success {
             echo "✅ Pipeline completado con éxito. App desplegada"
-            notifyBuildResult(recipients: 'magdielsh30@gmail.com')
-//            emailext (
-//                subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-//                body: '${SCRIPT, template="groovy-html.template"}',
-//                to: 'magdielsh30@gmail.com',
-//                attachLog: true,          // adjunta el console log completo
-//                compressLog: true         // lo comprime en .gz si es grande
-//            )
+            notify_BuildResult(recipients: 'magdielsh30@gmail.com')
+            //            emailext (
+            //                subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            //                body: '${SCRIPT, template="groovy-html.template"}',
+            //                to: 'magdielsh30@gmail.com',
+            //                attachLog: true,          // adjunta el console log completo
+            //                compressLog: true         // lo comprime en .gz si es grande
+            //            )
         }
         failure {
             echo "❌ El pipeline ha fallado. Revisa los logs del stage que falló."
+            notify_BuildResult(recipients: 'magdielsh30@gmail.com')
         }
         always {
-            // Limpia el workspace para no acumular basura entre builds
             cleanWs()
         }
     }
