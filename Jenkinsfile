@@ -110,11 +110,11 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    env.ACCOUNT_CHANGED    = changes.contains('account-service/')    ? 'true' : 'false'
-                    env.EUREKA_CHANGED = changes.contains('eureka-server/') ? 'true' : 'false'
-                    env.GATEWAY_CHANGED  = changes.contains('gateway/')  ? 'true' : 'false'
-                    env.ORDER_CHANGED = changes.contains('order-service/') ? 'true' : 'false'
-                    env.PRODUCTS_CHANGED  = changes.contains('product-service/')  ? 'true' : 'false'
+                    env.ACCOUNT_CHANGED    = changedFiles.contains('account-service/')    ? 'true' : 'false'
+                    env.EUREKA_CHANGED = changedFiles.contains('eureka-server/') ? 'true' : 'false'
+                    env.GATEWAY_CHANGED  = changedFiles.contains('gateway/')  ? 'true' : 'false'
+                    env.ORDER_CHANGED = changedFiles.contains('order-service/') ? 'true' : 'false'
+                    env.PRODUCTS_CHANGED  = changedFiles.contains('product-service/')  ? 'true' : 'false'
 
                     echo "Account-Service cambió, se compilara Nuevamente: ${env.ACCOUNT_CHANGED}"
                     echo "Eureka-Server, se compilara Nuevamente: ${env.EUREKA_CHANGED}"
