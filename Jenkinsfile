@@ -119,7 +119,7 @@ pipeline {
                         echo "Eureka-Server cambio, se compilara Nuevamente"
                     }
 
-                    if (changedFiles.contains('gategay/')){
+                    if (changedFiles.contains('gateway/')){
                         env.GATEWAY_CHANGED = 'true'
                         echo "Gateway cambio, se compilara Nuevamente"
                     }
