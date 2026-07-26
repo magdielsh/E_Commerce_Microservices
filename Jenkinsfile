@@ -194,7 +194,7 @@ pipeline {
                     steps {
                         // 👇 CONTROL 2: justo al entrar al stage que depende de la condición
                         echo "CONTROL 2 - GATEWAY_CHANGED en Build&Test: ${env.GATEWAY_CHANGED}"
-                        buildSpringService(servicePath: 'gateway', runTests: 'false')
+                        buildSpringService(servicePath: 'gateway', runTests: false)
                         // "dir()" cambia el directorio de trabajo solo para
                         // los comandos que están dentro de sus llaves.
 //                        dir('gateway') {
