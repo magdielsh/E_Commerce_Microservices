@@ -110,29 +110,41 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    if (changedFiles.contains('account-service/')){
-                        env.ACCOUNT_CHANGED = 'true'
-                        echo "Account-Service cambio, se compilara Nuevamente"
-                    }
-                    if (changedFiles.contains('eureka-server/')){
-                        env.EUREKA_CHANGED = 'true'
-                        echo "Eureka-Server cambio, se compilara Nuevamente"
-                    }
+                    env.ACCOUNT_CHANGED    = changes.contains('account-service/')    ? 'true' : 'false'
+                    env.EUREKA_CHANGED = changes.contains('eureka-server/') ? 'true' : 'false'
+                    env.GATEWAY_CHANGED  = changes.contains('gateway/')  ? 'true' : 'false'
+                    env.ORDER_CHANGED = changes.contains('order-service/') ? 'true' : 'false'
+                    env.PRODUCTS_CHANGED  = changes.contains('product-service/')  ? 'true' : 'false'
 
-                    if (changedFiles.contains('gateway/')){
-                        env.GATEWAY_CHANGED = 'true'
-                        echo "Gateway cambio, se compilara Nuevamente"
-                    }
+                    echo "Account-Service cambió, se compilara Nuevamente: ${env.ACCOUNT_CHANGED}"
+                    echo "Eureka-Server, se compilara Nuevamente: ${env.EUREKA_CHANGED}"
+                    echo "Gateway cambió, se compilara Nuevamente: ${env.GATEWAY_CHANGED}"
+                    echo "Order-Service cambió, se compilara Nuevamente: ${env.ORDER_CHANGED}"
+                    echo "Product-Service cambió, se compilara Nuevamente: ${env.PRODUCTS_CHANGED}"
 
-                    if (changedFiles.contains('order-service/')){
-                        env.ORDER_CHANGED = 'true'
-                        echo "Order-Service cambio, se compilara Nuevamente"
-                    }
-
-                    if (changedFiles.contains('product-service/')){
-                        env.PRODUCTS_CHANGED = 'true'
-                        echo "Product-Service cambio, se compilara Nuevamente"
-                    }
+                    //                    if (changedFiles.contains('account-service/')){
+                    //                        env.ACCOUNT_CHANGED = 'true'
+                    //                        echo "Account-Service cambio, se compilara Nuevamente"
+                    //                    }
+                    //                    if (changedFiles.contains('eureka-server/')){
+                    //                        env.EUREKA_CHANGED = 'true'
+                    //                        echo "Eureka-Server cambio, se compilara Nuevamente"
+                    //                    }
+                    //
+                    //                    if (changedFiles.contains('gateway/')){
+                    //                        env.GATEWAY_CHANGED = 'true'
+                    //                        echo "Gateway cambio, se compilara Nuevamente"
+                    //                    }
+                    //
+                    //                    if (changedFiles.contains('order-service/')){
+                    //                        env.ORDER_CHANGED = 'true'
+                    //                        echo "Order-Service cambio, se compilara Nuevamente"
+                    //                    }
+                    //
+                    //                    if (changedFiles.contains('product-service/')){
+                    //                        env.PRODUCTS_CHANGED = 'true'
+                    //                        echo "Product-Service cambio, se compilara Nuevamente"
+                    //                    }
                 }
             }
         }
@@ -251,6 +263,9 @@ pipeline {
         // ---------------------------------------------------------
         stage('Package') {
             agent any
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
                 script{
                     if(env.GATEWAY_CHANGED == 'true'){
@@ -277,6 +292,9 @@ pipeline {
         // ---------------------------------------------------------
         stage('Docker Build') {
             agent any
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
                 script{
                     if(env.GATEWAY_CHANGED == 'true'){
@@ -311,6 +329,9 @@ pipeline {
             //            when {
             //                branch 'main'
             //            }
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
                 script{
                     // Solo hacemos deploy de la imagen del servicio que
