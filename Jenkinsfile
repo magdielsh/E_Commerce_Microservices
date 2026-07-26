@@ -386,8 +386,8 @@ pipeline {
                         deployDockerService(
                             servicePath: 'gateway',
                             imageName: 'gateway',
-                            jwtSecretId: '${JWT_SECRET}',
-                            jenkinsNet: '${NETWORK}',
+                            jwtSecretId: "${JWT_SECRET}",
+                            jenkinsNet: "${NETWORK}",
                             imagePort: '7080'
                         )
 //                        dir('gateway'){
