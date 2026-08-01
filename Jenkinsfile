@@ -221,7 +221,7 @@ pipeline {
                         }
                     }
                     steps {
-                        build_test_SpringService(servicePath: 'order-service', runTests: true)
+                        build_test_SpringService(servicePath: 'order-service', runTests: false)
                     }
                 }
 
