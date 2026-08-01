@@ -153,7 +153,7 @@ pipeline {
         // ==========================================================
         // STAGE 2: Build + Test en PARALELO para todos los servicios
         // ==========================================================
-        // "parallel" hace que los dos bloques internos corran a la vez,
+        // "parallel" hace que todos los bloques internos corran a la vez,
         // no uno detrás del otro. Ahorra tiempo cuando ambos cambiaron.
         stage('Build & Test') {
             parallel {
