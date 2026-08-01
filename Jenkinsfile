@@ -16,7 +16,7 @@ pipeline {
     // agent any = este pipeline puede ejecutarse en cualquier agente
     // disponible (en tu caso, el propio Jenkins, ya que no tienes
     // agentes remotos configurados)
-    agent any
+    agent { label 'docker && linux' }
 
     // ------------------------------------------------------------
     // OPTIONS: comportamiento general del pipeline
@@ -35,9 +35,12 @@ pipeline {
         // MISMO job corran en paralelo (podrían pisarse el despliegue).
         disableConcurrentBuilds()
 
-        // Solo conserva el historial de los últimos 15 builds, para no
+        // Solo conserva el historial de los últimos 20 builds, para no
         // llenar el disco de logs y artefactos viejos.
-        buildDiscarder(logRotator(numToKeepStr: '20'))
+        // y concerva los artefactos de los ultimos 5 builds solamente
+        buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '5'))
+
+        ansiColor('xterm')
     }
 
     // ------------------------------------------------------------
@@ -48,7 +51,9 @@ pipeline {
         // sería algo como "tuusuario". Si usas uno privado, la URL completa.
         REGISTRY = "magdielsh"
 
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        GIT_SHORT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+
+        IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_SHORT_SHA}"
 
         // Nombre que le daremos a la imagenes de Docker resultantes
         IMAGE_NAME_EUREKA = "eureka-server"
@@ -108,43 +113,39 @@ pipeline {
                     def changedFiles = sh(
                         script: "git diff --name-only ${previousCommit} HEAD",
                         returnStdout: true
-                    ).trim()
+                    ).trim().split('\n')
 
-                    env.ACCOUNT_CHANGED    = changedFiles.contains('account-service/')    ? 'true' : 'false'
-                    env.EUREKA_CHANGED = changedFiles.contains('eureka-server/') ? 'true' : 'false'
-                    env.GATEWAY_CHANGED  = changedFiles.contains('gateway/')  ? 'true' : 'false'
-                    env.ORDER_CHANGED = changedFiles.contains('order-service/') ? 'true' : 'false'
-                    env.PRODUCTS_CHANGED  = changedFiles.contains('product-service/')  ? 'true' : 'false'
+                    env.ACCOUNT_CHANGED    = changedFiles.any { it.startsWith('account-service/') || it == 'Jenkinsfile' } ? 'true' : 'false'
+                    env.EUREKA_CHANGED = changedFiles.any { it.startsWith('eureka-server/') || it == 'Jenkinsfile' } ? 'true' : 'false'
+                    env.GATEWAY_CHANGED  = changedFiles.any { it.startsWith('gateway/') || it == 'Jenkinsfile' } ? 'true' : 'false'
+                    env.ORDER_CHANGED = changedFiles.any { it.startsWith('order-service/') || it == 'Jenkinsfile' } ? 'true' : 'false'
+                    env.PRODUCTS_CHANGED  = changedFiles.any { it.startsWith('product-service/') || it == 'Jenkinsfile' } ? 'true' : 'false'
 
-                    echo env.ACCOUNT_CHANGED == 'true' ? "✅ Account-Service cambió, se compilara Nuevamente" : "❌ Account-Service sin cambios"
-                    echo env.EUREKA_CHANGED == 'true' ? "✅ Eureka-Server cambió, se compilara Nuevamente" : "❌ Eureka-Server sin cambios"
-                    echo env.GATEWAY_CHANGED == 'true' ? "✅ Gateway cambió, se compilara Nuevamente" : "❌ Gateway sin cambios"
-                    echo env.ORDER_CHANGED == 'true' ? "✅ Order-Service cambió, se compilara Nuevamente" : "❌ Order-Service sin cambios"
-                    echo env.PRODUCTS_CHANGED == 'true' ? "✅ Product-Service cambió, se compilara Nuevamente" : "❌ Product-Service sin cambios"
+                    def manualBuild = currentBuild.rawBuild.getCauses().any {
+                        it.class.simpleName == 'UserIdCause'
+                    }
+                    if (manualBuild) {
+                        echo "⚡ Build manual detectado. Forzando ejecución de todos los servicios."
+                        env.ACCOUNT_CHANGED =  'true'
+                        env.EUREKA_CHANGED = 'true'
+                        env.GATEWAY_CHANGED  = 'true'
+                        env.ORDER_CHANGED = 'true'
+                        env.PRODUCTS_CHANGED  = 'true'
+                    }
 
-                    //                    if (changedFiles.contains('account-service/')){
-                    //                        env.ACCOUNT_CHANGED = 'true'
-                    //                        echo "Account-Service cambio, se compilara Nuevamente"
-                    //                    }
-                    //                    if (changedFiles.contains('eureka-server/')){
-                    //                        env.EUREKA_CHANGED = 'true'
-                    //                        echo "Eureka-Server cambio, se compilara Nuevamente"
-                    //                    }
-                    //
-                    //                    if (changedFiles.contains('gateway/')){
-                    //                        env.GATEWAY_CHANGED = 'true'
-                    //                        echo "Gateway cambio, se compilara Nuevamente"
-                    //                    }
-                    //
-                    //                    if (changedFiles.contains('order-service/')){
-                    //                        env.ORDER_CHANGED = 'true'
-                    //                        echo "Order-Service cambio, se compilara Nuevamente"
-                    //                    }
-                    //
-                    //                    if (changedFiles.contains('product-service/')){
-                    //                        env.PRODUCTS_CHANGED = 'true'
-                    //                        echo "Product-Service cambio, se compilara Nuevamente"
-                    //                    }
+                    echo env.ACCOUNT_CHANGED == 'true' ? "✅ Account-Service cambió o se actualizo el Jenkinsfile, se compilara Nuevamente" : "❌ Account-Service sin cambios"
+                    echo env.EUREKA_CHANGED == 'true' ? "✅ Eureka-Server cambió o se actualizo el Jenkinsfile, se compilara Nuevamente" : "❌ Eureka-Server sin cambios"
+                    echo env.GATEWAY_CHANGED == 'true' ? "✅ Gateway cambió o se actualizo el Jenkinsfile, se compilara Nuevamente" : "❌ Gateway sin cambios"
+                    echo env.ORDER_CHANGED == 'true' ? "✅ Order-Service cambió o se actualizo el Jenkinsfile, se compilara Nuevamente" : "❌ Order-Service sin cambios"
+                    echo env.PRODUCTS_CHANGED == 'true' ? "✅ Product-Service cambió o se actualizo el Jenkinsfile, se compilara Nuevamente" : "❌ Product-Service sin cambios"
+
+                    if (env.ACCOUNT_CHANGED =  'false' && env.EUREKA_CHANGED = 'false' &&  env.GATEWAY_CHANGED  = 'false' && env.ORDER_CHANGED = 'false' && env.PRODUCTS_CHANGED  = 'false') {
+                        echo "✅ No hay cambios en servicios monitoreados. Pipeline finalizado."
+                        currentBuild.result = 'SUCCESS'
+                        // Usamos error controlado para salir limpiamente
+                        error('SKIP_PIPELINE')
+                    }
+
                 }
             }
         }
@@ -323,8 +324,6 @@ pipeline {
         //  - Push a un registry (Docker Hub, ECR, GitLab Registry...)
         //  - kubectl apply / helm upgrade si usas Kubernetes
         //  - Ansible/SSH si despliegas sobre VMs
-        // Para tu entorno LOCAL, simplemente paramos el contenedor
-        // anterior (si existe) y levantamos el nuevo.
         stage('Deploy'){
             //            when {
             //                branch 'main'
