@@ -299,19 +299,19 @@ pipeline {
             steps {
                 script{
                     if(env.GATEWAY_CHANGED == 'true'){
-                        build_DockerService(servicePath: 'gateway', imageName: "${IMAGE_NAME_GATEWAY}")
+                        build_DockerService(servicePath: 'gateway', imageName: "${IMAGE_NAME_GATEWAY}", buildNumber: "${IMAGE_TAG}")
                     }
                     if(env.EUREKA_CHANGED == 'true'){
-                        build_DockerService(servicePath: 'eureka-server', imageName: "${IMAGE_NAME_EUREKA}")
+                        build_DockerService(servicePath: 'eureka-server', imageName: "${IMAGE_NAME_EUREKA}", buildNumber: "${IMAGE_TAG}")
                     }
                     if(env.ORDER_CHANGED == 'true'){
-                        build_DockerService(servicePath: 'order-service', imageName: "${IMAGE_NAME_ORDER}")
+                        build_DockerService(servicePath: 'order-service', imageName: "${IMAGE_NAME_ORDER}", buildNumber: "${IMAGE_TAG}")
                     }
                     if (env.PRODUCTS_CHANGED == 'true') {
-                        build_DockerService(servicePath: 'product-service', imageName: "${IMAGE_NAME_PRODUCT}")
+                        build_DockerService(servicePath: 'product-service', imageName: "${IMAGE_NAME_PRODUCT}", buildNumber: "${IMAGE_TAG}")
                     }
                     if (env.ACCOUNT_CHANGED == 'true') {
-                        build_DockerService(servicePath: 'account-service', imageName: "${IMAGE_NAME_ACCOUNT}")
+                        build_DockerService(servicePath: 'account-service', imageName: "${IMAGE_NAME_ACCOUNT}", buildNumber: "${IMAGE_TAG}")
                     }
                 }
             }
