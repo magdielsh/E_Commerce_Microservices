@@ -139,7 +139,7 @@ pipeline {
                     echo env.ORDER_CHANGED == 'true' ? "✅ Order-Service cambió o se actualizo el Jenkinsfile, se compilara Nuevamente" : "❌ Order-Service sin cambios"
                     echo env.PRODUCTS_CHANGED == 'true' ? "✅ Product-Service cambió o se actualizo el Jenkinsfile, se compilara Nuevamente" : "❌ Product-Service sin cambios"
 
-                    if (env.ACCOUNT_CHANGED =  'false' && env.EUREKA_CHANGED = 'false' &&  env.GATEWAY_CHANGED  = 'false' && env.ORDER_CHANGED = 'false' && env.PRODUCTS_CHANGED  = 'false') {
+                    if (env.ACCOUNT_CHANGED == 'false' && env.EUREKA_CHANGED == 'false' &&  env.GATEWAY_CHANGED  == 'false' && env.ORDER_CHANGED == 'false' && env.PRODUCTS_CHANGED == 'false') {
                         echo "✅ No hay cambios en servicios monitoreados. Pipeline finalizado."
                         currentBuild.result = 'SUCCESS'
                         // Usamos error controlado para salir limpiamente
