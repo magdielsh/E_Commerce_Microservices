@@ -185,7 +185,7 @@ pipeline {
                     //                        // "always" se ejecuta pase lo que pase (tests OK o KO).
                     //                        // junit publica los resultados en un reporte visual
                     //                        // dentro de Jenkins (pestaña "Test Result")
-                    //                        // Publica el reporte de tests SOLO para este stage,
+                    //                        // Publica el reporte de tests SOLO para este stage unicamente,
                     //                        // apuntando a la ruta dentro de order-service/
                     //                        always {
                     //                            junit 'order-service/target/surefire-reports/*.xml'
