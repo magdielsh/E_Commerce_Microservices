@@ -179,7 +179,7 @@ pipeline {
                         }
                     }
                     steps {
-                        build_test_SpringService(servicePath: 'gateway', runTests: false)
+                        compile_test_SpringService(servicePath: 'gateway', runTests: false)
                     }
                     //                    post {
                     //                        // "always" se ejecuta pase lo que pase (tests OK o KO).
@@ -205,7 +205,7 @@ pipeline {
                         }
                     }
                     steps {
-                        build_test_SpringService(servicePath: 'eureka-server', runTests: false)
+                        compile_test_SpringService(servicePath: 'eureka-server', runTests: false)
                     }
                 }
 
@@ -221,7 +221,7 @@ pipeline {
                         }
                     }
                     steps {
-                        build_test_SpringService(servicePath: 'order-service', runTests: false)
+                        compile_test_SpringService(servicePath: 'order-service', runTests: false)
                     }
                 }
 
@@ -237,7 +237,7 @@ pipeline {
                         }
                     }
                     steps {
-                        build_test_SpringService(servicePath: 'product-service', runTests: false)
+                        compile_test_SpringService(servicePath: 'product-service', runTests: false)
                     }
                 }
 
@@ -253,7 +253,7 @@ pipeline {
                         }
                     }
                     steps {
-                        build_test_SpringService(servicePath: 'account-service', runTests: false)
+                        compile_test_SpringService(servicePath: 'account-service', runTests: false)
                     }
                 }
             }

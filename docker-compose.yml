@@ -252,7 +252,7 @@ services:
 
   jenkins:
     # En lugar de usar la imagen oficial "pelada", construimos nuestra
-    # propia imagen (ver Dockerfile.jenkins.jenkins) que añade Docker CLI y Maven,
+    # propia imagen (ver Dockerfile.TODOELTRABAJO.jenkins.jenkins) que añade Docker CLI y Maven,
     # herramientas que necesitaremos en el pipeline.
     build:
       context: .
@@ -283,7 +283,7 @@ services:
 
       # Opcional: si quieres que Jenkins tenga el binario docker disponible
       # dentro de su propio contenedor (la imagen base no lo trae).
-      # Lo instalamos manualmente más abajo con un Dockerfile.jenkins custom si
+      # Lo instalamos manualmente más abajo con un Dockerfile.TODOELTRABAJO.jenkins custom si
       # hiciera falta; de momento probamos así porque muchas veces basta
       # con montar el socket y usar una imagen que ya traiga el cliente.
 

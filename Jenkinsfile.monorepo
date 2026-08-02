@@ -6,10 +6,10 @@
 //   /
 //   ├── order-service/
 //   │   ├── pom.xml
-//   │   └── Dockerfile
+//   │   └── Dockerfile.TODOELTRABAJO
 //   ├── products-service/
 //   │   ├── pom.xml
-//   │   └── Dockerfile
+//   │   └── Dockerfile.TODOELTRABAJO
 //   └── Jenkinsfile   <- este archivo, en la raíz
 //
 // Cada línea lleva su comentario explicativo justo encima o al lado.

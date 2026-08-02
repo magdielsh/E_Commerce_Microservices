@@ -1,0 +1,171 @@
+# ==============================================================================
+# Dockerfile - order-service
+# Microservicio Spring Boot (Java) - Arquitectura e-commerce microservices
+# Estrategia: Multi-stage build para separar la fase de compilación de la
+# fase de ejecución, reduciendo drásticamente el tamaño final de la imagen
+# y la superficie de ataque (no queremos Maven, el JDK completo ni el
+# código fuente dentro de la imagen que corre en producción).
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+# ARGUMENTOS GLOBALES (disponibles antes del primer FROM)
+# ------------------------------------------------------------------------------
+# Permiten parametrizar las versiones base sin tocar el cuerpo del Dockerfile.
+# Se pueden sobreescribir en build time con: --build-arg JAVA_VERSION=21
+ARG JAVA_VERSION=17
+ARG MAVEN_VERSION=3.9.9
+
+
+# ==============================================================================
+# STAGE 1: BUILD
+# Aquí compilamos el proyecto y generamos el .jar ejecutable.
+# Usamos una imagen que ya trae Maven + JDK para no instalarlos manualmente.
+# ==============================================================================
+FROM maven:${MAVEN_VERSION}-eclipse-temurin-${JAVA_VERSION} AS build
+
+# Buenas prácticas: metadata sobre quién mantiene la imagen y qué hace.
+LABEL stage="build"
+LABEL maintainer="equipo-backend@tuempresa.com"
+
+# Directorio de trabajo dentro del contenedor de build.
+WORKDIR /app
+
+# --- OPTIMIZACIÓN DE CACHÉ DE CAPAS DOCKER ---
+# Copiamos PRIMERO solo el pom.xml (y el wrapper de Maven si lo usas).
+# ¿Por qué? Docker cachea cada instrucción como una capa. Si copiamos todo
+# el código fuente de una vez, cualquier cambio en una línea de Java invalida
+# la caché de la descarga de dependencias, obligando a re-descargar TODO
+# el repositorio Maven en cada build. Separando pom.xml del código,
+# las dependencias solo se re-descargan cuando el pom.xml cambia.
+COPY pom.xml .
+
+# Si el proyecto es un monorepo multi-módulo (como el tuyo: order-service,
+# products-service, account-service, eureka-server, gateway), y order-service
+# depende de un módulo "common" o "shared-dtos", descomenta y ajusta:
+# COPY ../pom.xml /app/parent-pom.xml
+# COPY ../shared-dtos/pom.xml /app/shared-dtos/pom.xml
+
+# Descarga de dependencias en modo offline-friendly.
+# go-offline intenta resolver TODAS las dependencias del pom (incluidas
+# las de plugins) para que quede cacheado en la capa de Docker.
+RUN mvn dependency:go-offline -B
+
+# Ahora sí copiamos el código fuente completo del microservicio.
+# Esta capa se invalida con cada cambio de código, pero ya no afecta
+# a la descarga de dependencias (capa anterior ya cacheada).
+COPY src ./src
+
+# Compilamos y empaquetamos el jar.
+# -B          -> batch mode (sin logs interactivos, ideal para CI/CD como Jenkins)
+# -DskipTests -> las pruebas NO deben correr aquí. En tu pipeline de Jenkins,
+#                los tests ya se ejecutan en una etapa previa (Test Stage).
+#                Duplicarlos en el build de Docker solo alarga el pipeline.
+# clean package -> limpia builds previos y genera el .jar en /app/target
+RUN mvn clean package -DskipTests -B
+
+# Extraemos las capas del jar de Spring Boot (Spring Boot Layertools).
+# Desde Spring Boot 2.3+, el jar ejecutable se puede "desempaquetar" en capas:
+# dependencies, spring-boot-loader, snapshot-dependencies, application.
+# Esto es CLAVE para optimizar aún más la caché en el stage final:
+# las dependencias (que casi no cambian) van en una capa separada del
+# código de la aplicación (que cambia en cada commit).
+RUN java -Djarmode=layertools -jar target/*.jar extract --destination extracted
+
+
+# ==============================================================================
+# STAGE 2: RUNTIME
+# Imagen final, ligera, que solo contiene el JRE (no el JDK) y el jar.
+# ==============================================================================
+FROM eclipse-temurin:${JAVA_VERSION}-jre-jammy AS runtime
+
+LABEL maintainer="equipo-backend@tuempresa.com"
+LABEL service="order-service"
+LABEL description="Microservicio de gestión de órdenes - e-commerce microservices"
+
+# --- SEGURIDAD: usuario no privilegiado ---
+# Por defecto los contenedores corren como root, lo cual es un riesgo de
+# seguridad (si alguien compromete el proceso Java, tiene privilegios root
+# dentro del contenedor). Creamos un usuario y grupo dedicados sin shell
+# de login y sin home, con UID/GID fijos (buena práctica para Kubernetes
+# y para escaneo de vulnerabilidades tipo Trivy/Snyk).
+RUN groupadd -g 1000 spring && \
+    useradd -u 1000 -g spring -s /usr/sbin/nologin -M spring
+
+# Instalamos curl SOLO para el healthcheck (curl no viene en la imagen jre
+# "slim"). Si prefieres una imagen aún más mínima, se puede reemplazar el
+# healthcheck por el endpoint de Actuator usando wget o un healthcheck
+# externo (recomendado en Kubernetes vía livenessProbe/readinessProbe).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copiamos las capas extraídas del stage de build, EN ORDEN de menor a
+# mayor frecuencia de cambio (esto maximiza el reaprovechamiento de caché
+# cuando reconstruyes la imagen tras un simple cambio de código):
+#
+# 1) dependencies          -> librerías de terceros (Spring, Feign, Resilience4j...)
+# 2) spring-boot-loader    -> el propio bootloader de Spring Boot
+# 3) snapshot-dependencies -> dependencias SNAPSHOT (si usas alguna interna)
+# 4) application           -> TU código compilado (.class), el que más cambia
+#
+# --chown=spring:spring asegura que el usuario no-root sea dueño de los
+# archivos y pueda leerlos/ejecutarlos sin necesidad de permisos root.
+COPY --from=build --chown=spring:spring /app/extracted/dependencies/ ./
+COPY --from=build --chown=spring:spring /app/extracted/spring-boot-loader/ ./
+COPY --from=build --chown=spring:spring /app/extracted/snapshot-dependencies/ ./
+COPY --from=build --chown=spring:spring /app/extracted/application/ ./
+
+# Cambiamos al usuario no-root para todo lo que sigue (RUN, ENTRYPOINT, etc.)
+USER spring:spring
+
+# Puerto en el que escucha Spring Boot (ajústalo si tu application.yml
+# define otro server.port). EXPOSE es documental: no publica el puerto
+# por sí solo, solo informa a quien lea el Dockerfile / a herramientas
+# como docker-compose que este es el puerto de la app.
+EXPOSE 8080
+
+# --- VARIABLES DE ENTORNO ---
+# Perfil de Spring por defecto. En tu docker-compose o en Jenkins puedes
+# sobreescribirlo con -e SPRING_PROFILES_ACTIVE=docker (o prod, staging...).
+ENV SPRING_PROFILES_ACTIVE=docker
+
+# Opciones de la JVM pensadas para contenedores:
+# -XX:+UseContainerSupport   -> la JVM respeta los límites de CPU/memoria
+#                                del contenedor (cgroups), no los del host.
+# -XX:MaxRAMPercentage=75.0  -> usa hasta el 75% de la memoria asignada al
+#                                contenedor para el heap, dejando margen
+#                                para metaspace, threads, etc. Evita el
+#                                clásico OOMKilled por mala configuración.
+# -Djava.security.egd=file:/dev/./urandom -> acelera el arranque de Spring
+#                                Boot evitando bloqueos por baja entropía
+#                                al generar SecureRandom.
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+
+# --- HEALTHCHECK ---
+# Docker (y docker-compose) pueden usar esto para saber si el contenedor
+# está realmente "sano", no solo "corriendo". Requiere que tengas el
+# actuator habilitado: management.endpoint.health.enabled=true
+# --interval  -> cada cuánto se chequea
+# --timeout   -> tiempo máximo de espera de la respuesta
+# --start-period -> tiempo de gracia al arrancar (Spring Boot + Eureka
+#                    registration puede tardar unos segundos)
+# --retries   -> intentos fallidos antes de marcar el contenedor "unhealthy"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# --- ENTRYPOINT ---
+# Usamos la forma "exec" (array JSON), NUNCA la forma "shell" (CMD java -jar ...
+# como string), porque:
+# 1) La forma exec hace que el proceso Java sea el PID 1 del contenedor,
+#    recibiendo correctamente señales SIGTERM de Docker/Kubernetes para
+#    un shutdown graceful (Spring Boot puede cerrar conexiones, pools, etc.)
+# 2) La forma shell envuelve el comando en /bin/sh -c, y el proceso Java
+#    queda como hijo, perdiendo esas señales (shutdown "sucio").
+#
+# org.springframework.boot.loader.launch.JarLauncher es el launcher que
+# usa el layertools para arrancar la app desde las capas extraídas
+# (en vez de "java -jar app.jar").
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]
