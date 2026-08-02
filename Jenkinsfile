@@ -317,9 +317,9 @@ pipeline {
             }
         }
 
-        // ---------------------------------------------------------
-        // STAGE 6: Desplegar SOLO si estamos en main
-        // ---------------------------------------------------------
+        // --------------------------------------------------------------------
+        // STAGE 6: Desplegar SOLO si estamos en main cuando temos varias ramas
+        // --------------------------------------------------------------------
         // En un entorno real esto normalmente sería:
         //  - Push a un registry (Docker Hub, ECR, GitLab Registry...)
         //  - kubectl apply / helm upgrade si usas Kubernetes
