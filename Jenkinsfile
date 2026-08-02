@@ -115,7 +115,7 @@ pipeline {
                         returnStdout: true
                     ).trim().split('\n')
 
-                    def env.GIT_USER_MODIFICATION = sh(script: "git show -s --pretty=%an", returnStdout: true).trim()
+                    env.GIT_USER_MODIFICATION = sh(script: "git show -s --pretty=%an", returnStdout: true).trim()
 
                     env.ACCOUNT_CHANGED    = changedFiles.any { it.startsWith('account-service/') || it == 'Jenkinsfile' } ? 'true' : 'false'
                     env.EUREKA_CHANGED = changedFiles.any { it.startsWith('eureka-server/') || it == 'Jenkinsfile' } ? 'true' : 'false'
@@ -413,7 +413,7 @@ pipeline {
     post {
         success {
             echo "✅ Pipeline completado con éxito. App desplegada"
-            notify_BuildResult(recipients: 'magdielsh30@gmail.com', userCommit: "${GIT_USER_MODIFICATION}")
+            notify_BuildResult(recipients: 'magdielsh30@gmail.com', userCommit: "${env.GIT_USER_MODIFICATION}")
             //            emailext (
             //                subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
             //                body: '${SCRIPT, template="groovy-html.template"}',
@@ -424,11 +424,11 @@ pipeline {
         }
         unsuccessful {
             echo "⚠️ Hay cosas que han fallado. Revisa los logs del stage que falló."
-            notify_BuildResult(recipients: 'magdielsh30@gmail.com', userCommit: "${GIT_USER_MODIFICATION}")
+            notify_BuildResult(recipients: 'magdielsh30@gmail.com', userCommit: "${env.GIT_USER_MODIFICATION}")
         }
         failure {
             echo "❌ El pipeline ha fallado. Revisa los logs del stage que falló."
-            notify_BuildResult(recipients: 'magdielsh30@gmail.com', userCommit: "${GIT_USER_MODIFICATION}")
+            notify_BuildResult(recipients: 'magdielsh30@gmail.com', userCommit: "${env.GIT_USER_MODIFICATION}")
         }
         always {
             cleanWs()
