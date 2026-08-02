@@ -151,11 +151,11 @@ pipeline {
         }
 
         // ==========================================================
-        // STAGE 2: Build + Test en PARALELO para todos los servicios
+        // STAGE 2: Complile + Test en PARALELO para todos los servicios
         // ==========================================================
         // "parallel" hace que todos los bloques internos corran a la vez,
         // no uno detrás del otro. Ahorra tiempo cuando ambos cambiaron.
-        stage('Build & Test') {
+        stage('Complile & Test') {
             parallel {
                 // -------- Gateway --------
                 stage('gateway') {
@@ -259,9 +259,9 @@ pipeline {
             }
         }
 
-        // ---------------------------------------------------------
-        // STAGE 4: Empaquetar (genera el .jar ejecutable)
-        // ---------------------------------------------------------
+        // -----------------------------------------------------------------
+        // STAGE 4: Empaquetar (genera el .jar ejecutable) y lo desempaqueta
+        // -----------------------------------------------------------------
         stage('Package') {
             agent any
             when {
