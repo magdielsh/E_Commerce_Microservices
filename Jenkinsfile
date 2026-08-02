@@ -409,7 +409,7 @@ pipeline {
     }
 
     // Acciones que se ejecutan al finalizar el pipeline, independientemente
-    // del resultado (éxito, fallo, inestable...)
+    // del resultado (éxito, fallo, inestable...), se envia email
     post {
         success {
             echo "✅ Pipeline completado con éxito. App desplegada"
