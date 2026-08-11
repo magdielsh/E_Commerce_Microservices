@@ -1,0 +1,11 @@
+# application-dev.yml
+spring:
+  data:
+    mongodb:
+      # En dev, URI directa apuntando al contenedor Docker Compose
+      uri: mongodb://admin:admin123@localhost:27017/reviews_db?authSource=admin
+      auto-index-creation: true  # crea índices automáticamente desde @Indexed (solo en dev)
+
+logging:
+  level:
+    org.springframework.data.mongodb.core.MongoTemplate: DEBUG  # ver las queries reales que genera Spring Data

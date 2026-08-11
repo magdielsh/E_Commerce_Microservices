@@ -302,8 +302,39 @@ services:
     group_add:
       - "999"
 
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb-reviews
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: reviews_db
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - microservices-net
+
+  mongo-express:
+    image: mongo-express:1.0
+    container_name: mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin123
+      ME_CONFIG_MONGODB_SERVER: mongodb
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-net
+
 volumes:
   postgres_data:
+  mongo_data:
   kafka_data:
   zookeeper_data:
   zookeeper_log:
@@ -313,5 +344,7 @@ volumes:
 
 
 networks:
+  microservices-net:
+    driver: bridge
   default:
     name: jenkins-net
