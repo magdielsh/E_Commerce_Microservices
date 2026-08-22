@@ -70,7 +70,7 @@ pipeline {
         // order-service pueda resolver "products-service" por nombre DNS
         // en vez de por IP (Docker crea DNS interno automático por nombre
         // de contenedor dentro de la misma red).
-        NETWORK = "jenkins-net"
+        NETWORK = "microservices-net"
     }
 
     // Herramientas que Jenkins debe tener configuradas globalmente

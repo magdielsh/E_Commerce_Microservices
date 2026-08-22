@@ -41,8 +41,7 @@ import java.util.List;
  */
 @FeignClient(
         name = "products-service",
-        //url = "${services.products.url}",
-        fallbackFactory = ProductClientFallbackFactory.class,
+        url = "${services.products.url}",
         configuration = ProductFeignConfig.class
 )
 public interface ProductClient {

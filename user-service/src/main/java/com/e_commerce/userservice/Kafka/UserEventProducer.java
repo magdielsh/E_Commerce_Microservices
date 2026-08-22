@@ -67,7 +67,7 @@ public class UserEventProducer {
                     }
                 });
             } catch (Exception ex) {
-                log.error("Error enviando mensaje {}, para el usuario: {}, Error: {}", event.userId(), event.email(), ex.getMessage());
+                log.error("El Buffer del Productor esta lleno, error enviando mensaje {}, para el usuario: {}, Error: {}", event.userId(), event.email(), ex.getMessage());
                // outBoxService.buildOutboxEvent(event);
                 log.error("Guardando mensaje {}, para el usuario: {} en OutBox", event.userId(), event.email());
             }

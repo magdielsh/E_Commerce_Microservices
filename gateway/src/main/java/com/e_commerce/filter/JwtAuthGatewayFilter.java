@@ -1,11 +1,12 @@
 package com.e_commerce.filter;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.SignatureException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -13,10 +14,12 @@ import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +41,9 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
 
     // Lista de rutas públicas leída del application.yml
     private List<String> routes;
+
+    @Value("${gateway.secret}")
+    private String gatewaySecret;
 
     // ─────────────────────────────────────────────────────────────────────
     // filter() es el método principal del filtro.
@@ -61,12 +67,17 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        // ─── PASO 2: Extraer la cabecera Authorization ───────────────────
+        // ─── PASO 2:  Revisar si existe la cabecera Authorization y la extrae ───────────────────
+        //
+        if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+            log.warn("Falta la cabecera de autorización: {}", path);
+            return unauthorized(exchange, "Falta la cabecera de autorización");
+        }
         String authHeader = exchange.getRequest()
             .getHeaders()
             .getFirst(HttpHeaders.AUTHORIZATION);
 
-        // Si no hay cabecera o no empieza por "Bearer ", rechazamos con 401
+        // Si no empieza por "Bearer ", rechazamos con 401
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("Petición sin token a una ruta protegida: {}", path);
             return unauthorized(exchange, "Token requerido");
@@ -83,9 +94,24 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
             //   - El token ha expirado (exp < now)
             //   - El token está malformado
             claims = jwtValidator.validateAndExtract(token);
+        } catch (ExpiredJwtException e) {
+            log.warn("Token expirado {}: {}", path, e.getMessage());
+            return unauthorized(exchange, "Token expirado");
+        } catch (SignatureException e) {
+            log.warn("Token modificado o firmado con clave incorrecta {}: {}", path, e.getMessage());
+            return unauthorized(exchange, "Token modificado o firmado con clave incorrecta");
+        } catch (MalformedJwtException e) {
+            log.warn("Token mal formado o con caracteres corruptos {}: {}", path, e.getMessage());
+            return unauthorized(exchange, "Token mal formado o con caracteres corruptos");
+        } catch (UnsupportedJwtException e) {
+            log.warn("Formato del Token no esperado (Corrupto) {}: {}", path, e.getMessage());
+            return unauthorized(exchange, "Formato del Token no esperado (Corrupto)");
+        } catch (IllegalArgumentException e) {
+            log.warn("Token nulo, vacio o con espacios en blanco {}: {}", path, e.getMessage());
+            return unauthorized(exchange, "Token nulo, vacio o con espacios en blanco");
         } catch (JwtException e) {
             log.warn("Token inválido para {}: {}", path, e.getMessage());
-            return unauthorized(exchange, "Token inválido o expirado");
+            return unauthorized(exchange, "Token inválido para");
         }
 
         // ─── PASO 4: Extraer datos del payload del JWT ────────────────────
@@ -121,6 +147,9 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
             // directamente (saltándose el gateway) → puede rechazarla.
             .header("X-Authenticated", "true")
 
+            // Cabecera firmada por el GATEWAY y compratida por los microservicios
+            .header("X-Gateway-Secret", gatewaySecret)
+
             // Eliminamos la cabecera Authorization original del reenvío.
             // Los microservicios internos NO necesitan el JWT completo;
             // ya tienen la info extraída en las cabeceras de arriba.
@@ -149,10 +178,11 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
     // Responde directamente con 401 sin llegar al microservicio destino.
     // exchange.getResponse().setComplete() cierra la respuesta.
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        exchange.getResponse().getHeaders().add("Content-Type", "application/json");
-        var buffer = exchange.getResponse().bufferFactory()
-            .wrap(("{\"error\":\"" + message + "\"}").getBytes());
-        return exchange.getResponse().writeWith(Mono.just(buffer));
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(HttpStatus.UNAUTHORIZED);
+        response.getHeaders().add("Content-Type", "application/json");
+        var buffer = response.bufferFactory()
+            .wrap(("{\"error\":\"" + message + "\"}").getBytes(StandardCharsets.UTF_8));
+        return response.writeWith(Mono.just(buffer));
     }
 }

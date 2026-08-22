@@ -11,7 +11,7 @@
     "database.dbname": "user_accounts_mc",
 
     "database.server.name": "message-db-server",
-    "table.include.list": "public.outbox_events",
+    "table.include.list": "public.outbox_events,public.debezium_heartbeat",
 
     "slot.name": "debezium_outbox_user_slot",
 

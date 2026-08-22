@@ -1,3 +1,10 @@
+# Anclamos la misma imagen para los 6 nodos con un YAML anchor (&kafka-common
+# / *kafka-common) para no repetir "image:" seis veces. No es obligatorio,
+# pero evita drift de versión entre nodos — algo que en Kafka real puede
+# causar incompatibilidades de protocolo si un nodo queda desactualizado.
+x-kafka-common: &kafka-common
+  image: apache/kafka:3.9.0
+
 services:
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -49,24 +56,24 @@ services:
   # NOTA: Kafka 3.x puede funcionar sin Zookeeper (KRaft mode),
   # pero la imagen de Debezium/Confluent sigue usando Zookeeper por estabilidad.
   # ─────────────────────────────────────────────────────────────────────────
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper_mensajes
-    restart: unless-stopped
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 22181
-      ZOOKEEPER_TICK_TIME: 2000       # Heartbeat cada 2s para detectar nodos caídos
-      ZOOKEEPER_SYNC_LIMIT: 2         # Máximo retraso permitido entre líder y seguidor
-    ports:
-      - "22181:22181"
-    volumes:
-      - zookeeper_data:/var/lib/zookeeper/data
-      - zookeeper_log:/var/lib/zookeeper/log
-    healthcheck:
-      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#  zookeeper:
+#    image: confluentinc/cp-zookeeper:7.5.0
+#    container_name: zookeeper_mensajes
+#    restart: unless-stopped
+#    environment:
+#      ZOOKEEPER_CLIENT_PORT: 22181
+#      ZOOKEEPER_TICK_TIME: 2000       # Heartbeat cada 2s para detectar nodos caídos
+#      ZOOKEEPER_SYNC_LIMIT: 2         # Máximo retraso permitido entre líder y seguidor
+#    ports:
+#      - "22181:22181"
+#    volumes:
+#      - zookeeper_data:/var/lib/zookeeper/data
+#      - zookeeper_log:/var/lib/zookeeper/log
+#    healthcheck:
+#      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
 
   # ─────────────────────────────────────────────────────────────────────────
   # KAFKA BROKER
@@ -77,46 +84,425 @@ services:
   #   - INTERNAL (kafka:29092): para comunicación entre contenedores Docker
   #   - EXTERNAL (localhost:9092): para tu app Spring Boot en el host
   # ─────────────────────────────────────────────────────────────────────────
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka_mensajes
-    restart: unless-stopped
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    ports:
-      - "9092:9092"
+  # -----------------------------------------------------------------------------
+  # Kafka KRaft — topología de producción simulada:
+  #   - 3 nodos CONTROLLER dedicados (quorum Raft, sin servir datos a clientes)
+  #   - 3 nodos BROKER dedicados (sirven datos, replican entre sí)
+  # Todos comparten el mismo cluster.id.
+  # -----------------------------------------------------------------------------
+  # ===========================================================================
+  # CONTROLLER 1 — comentado línea por línea al detalle. Los controllers 2 y 3
+  # son idénticos salvo NODE_ID y hostname, así que ahí solo marco qué cambia.
+  # ===========================================================================
+  kafka-controller-1:
+    <<: *kafka-common
+    container_name: kafka-controller-1
+    hostname: kafka-controller-1
+    # El hostname es crítico acá: es lo que va a aparecer literalmente dentro
+    # de KAFKA_CONTROLLER_QUORUM_VOTERS. Docker Compose resuelve este nombre
+    # vía su DNS interno, así que todos los demás nodos lo van a poder
+    # alcanzar como "kafka-controller-1" sin IP fija.
+
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:22181
+      KAFKA_NODE_ID: 1
+      # ID único en TODO el cluster (controllers + brokers comparten el
+      # mismo espacio de IDs). Este nodo es el voter #1 del quorum Raft.
 
-      # Dos listeners: interno (entre contenedores) y externo (host → Docker)
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_PROCESS_ROLES: controller
+      # A diferencia del single-node de antes, acá SOLO controller. Este nodo
+      # nunca va a recibir tráfico de producers/consumers ni va a tener
+      # particiones de topics de usuario.
 
-      # Replicación factor 1 (solo 1 broker en local).
-      # EN PRODUCCIÓN: mínimo 3 brokers y factor=3
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LISTENERS: CONTROLLER://kafka-controller-1:9093
+      # Solo necesita el listener de Raft. No expone PLAINTEXT porque no
+      # sirve datos — un cliente Kafka normal (tu Spring Boot) JAMÁS se
+      # conecta directamente a un controller.
 
-      # Retención: guarda los mensajes 7 días o hasta 1GB por partición
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      # Solo mapeamos el protocolo del listener que realmente usamos.
 
-      # Permite crear topics automáticamente (Debezium los crea por ti)
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Reafirma cuál listener es el de Raft (relevante cuando en otros
+      # nodos combinados hay más de un listener declarado).
 
-      # Número de particiones por defecto. En producción ajusta según throughput esperado.
-      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093,2@kafka-controller-2:9093,3@kafka-controller-3:9093
+      # ACÁ está el corazón del quorum. Los 3 controllers (y también los 3
+      # brokers, más abajo) necesitan esta MISMA lista exacta, porque:
+      #   - Los controllers la usan para saber con quién hacer Raft
+      #     (elección de líder, replicación del log de metadatos).
+      #   - Los brokers la usan para saber a quién preguntarle metadatos
+      #     (crear topics, elecciones de líder de partición, etc.) aunque
+      #     ellos mismos no voten.
+      # Formato: id@host:puerto, separados por coma. Debe ser IDÉNTICA en
+      # los 6 nodos — un typo acá es la causa #1 de clusters KRaft que no
+      # arrancan.
+
+      CLUSTER_ID: "nj6FkhxMSziZjohauptJkQ"
+      # El mismo cluster.id en los 6 nodos. Si un nodo arranca con un
+      # cluster.id distinto (por ejemplo, por copiar mal el compose), Kafka
+      # lo rechaza explícitamente con un error de mismatch — es una
+      # protección contra mezclar nodos de clusters distintos por error.
+
     volumes:
-      - kafka_data:/var/lib/kafka/data
+      - kafka_controller_1_data:/var/lib/kafka/data
+      # Cada controller tiene SU PROPIO volumen. Acá vive el log replicado
+      # de __cluster_metadata para ESTE voter específico. Si perdés más de
+      # la mitad de los volúmenes de controllers a la vez, perdés el
+      # quorum (igual que perder el quorum de Zookeeper antes).
+
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
-      interval: 15s
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-metadata-quorum.sh --bootstrap-controller kafka-controller-1:9093 describe --status || exit 1" ]
+      # --bootstrap-controller (no --bootstrap-server): apunta directo al
+      # puerto 9093, el mismo que declaramos en KAFKA_LISTENERS para el
+      # nombre CONTROLLER. "describe --status" es el mismo comando que
+      # usamos antes para inspeccionar el quorum a mano — acá lo usamos
+      # como chequeo automático: si responde sin error, este nodo está
+      # participando activamente del consenso Raft (no solo "el proceso
+      # está corriendo", sino "está realmente integrado al quorum").
+      interval: 10s
       timeout: 10s
       retries: 5
+      start_period: 20s
+      # start_period más generoso porque la formación inicial del quorum
+      # (elección del primer líder Raft entre los 3 controllers) puede
+      # tardar unos segundos más que el arranque de un broker individual.
+
+  # ===========================================================================
+  # CONTROLLER 2 — mismo patrón, solo cambia NODE_ID y hostname
+  # ===========================================================================
+  kafka-controller-2:
+    <<: *kafka-common
+    container_name: kafka-controller-2
+    hostname: kafka-controller-2
+    environment:
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_LISTENERS: CONTROLLER://kafka-controller-2:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093,2@kafka-controller-2:9093,3@kafka-controller-3:9093
+      CLUSTER_ID: "nj6FkhxMSziZjohauptJkQ"
+    volumes:
+      - kafka_controller_2_data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-metadata-quorum.sh --bootstrap-controller kafka-controller-2:9093 describe --status || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ===========================================================================
+  # CONTROLLER 3 — mismo patrón, solo cambia NODE_ID y hostname
+  # ===========================================================================
+  kafka-controller-3:
+    <<: *kafka-common
+    container_name: kafka-controller-3
+    hostname: kafka-controller-3
+    environment:
+      KAFKA_NODE_ID: 3
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_LISTENERS: CONTROLLER://kafka-controller-3:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093,2@kafka-controller-2:9093,3@kafka-controller-3:9093
+      CLUSTER_ID: "nj6FkhxMSziZjohauptJkQ"
+    volumes:
+      - kafka_controller_3_data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-metadata-quorum.sh --bootstrap-controller kafka-controller-3:9093 describe --status || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ===========================================================================
+  # BROKER 1 — comentado línea por línea al detalle. Brokers 2 y 3 idénticos
+  # salvo NODE_ID, hostname y el puerto de host expuesto.
+  # ===========================================================================
+  kafka-broker-1:
+    <<: *kafka-common
+    container_name: kafka-broker-1
+    hostname: kafka-broker-1
+    depends_on:
+      kafka-controller-1:
+        condition: service_healthy
+      kafka-controller-2:
+        condition: service_healthy
+      kafka-controller-3:
+        condition: service_healthy
+      # Antes esto era solo una lista simple (esperaba que el contenedor
+      # existiera, no que el quorum estuviera realmente formado). Con
+      # "condition: service_healthy", Docker Compose espera a que las
+      # tres healthchecks de arriba pasen (o sea, que kafka-metadata-quorum.sh
+      # confirme que cada controller está integrado al quorum) ANTES de
+      # arrancar el broker. Esto evita la carrera donde un broker intenta
+      # conectarse a un quorum que todavía no terminó de elegir líder.
+
+    ports:
+      - "9092:9092"
+      # Puerto de host ÚNICO para este broker. Cada broker necesita un
+      # puerto de host distinto porque los 3 corren en la misma máquina
+      # (9092, 9094, 9096 abajo). Dentro de la red Docker interna, en
+      # cambio, todos pueden usar el mismo puerto 29092 porque cada uno
+      # tiene su propio hostname.
+
+    environment:
+      KAFKA_NODE_ID: 4
+      # Sigue la numeración después de los controllers (1,2,3). No podría
+      # ser "1" de nuevo: los NODE_ID son únicos en TODO el cluster, no por
+      # rol.
+
+      KAFKA_PROCESS_ROLES: broker
+      # Solo rol de broker. Este nodo NO participa en el consenso Raft, pero
+      # sí necesita saber quiénes son los controllers (ver QUORUM_VOTERS
+      # abajo) para poder pedirles metadatos.
+
+      KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      # Dos listeners de datos (ninguno de tipo CONTROLLER, porque este nodo
+      # no cumple ese rol):
+      #  - PLAINTEXT_HOST: para clientes que se conectan desde fuera de la
+      #    red Docker (tu Spring Boot corriendo en tu máquina/IDE).
+      #  - PLAINTEXT_INTERNAL: para clientes/otros brokers dentro de la
+      #    misma red Docker.
+
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT_INTERNAL://kafka-broker-1:29092
+      # La dirección que este broker "publica" para cada listener. Cuando
+      # un cliente pregunta "¿dónde está el líder de la partición X?", si
+      # ese líder es este broker, la respuesta va a ser una de estas dos
+      # direcciones según por qué listener llegó la conexión original.
+      # OJO: acá "localhost:9092" solo tiene sentido si tu cliente externo
+      # se conecta directo a ESTE broker específico en el puerto 9092. Con
+      # 3 brokers, tus microservicios deberían apuntar su bootstrap-servers
+      # a los 3 puertos de host (9092,9094,9096) para poder descubrir el
+      # cluster completo aunque este broker puntual esté caído.
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+        # Le agregamos la entrada CONTROLLER:PLAINTEXT que faltaba. Este
+        # broker nunca abre un socket con ese nombre (no está en
+        # KAFKA_LISTENERS), pero necesita saber CON QUÉ PROTOCOLO hablarle
+        # a los controllers cuando marque hacia las direcciones de
+        # CONTROLLER_QUORUM_VOTERS. Tiene que coincidir exactamente con el
+      # protocolo que configuraste en los controllers reales (PLAINTEXT,
+      # en este caso — si migrás a SASL_SSL, cambia acá también).
+
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+        # Esta es la línea nueva que faltaba. Le dice al broker cuál de las
+        # entradas del protocol map de arriba es la del canal Raft — así
+        # sabe que, al leer CONTROLLER_QUORUM_VOTERS más abajo, esas
+      # direcciones se dialean con el protocolo PLAINTEXT que acabamos
+      # de mapear.
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      # CRÍTICO en multi-broker: cuando broker-1 replica una partición hacia
+      # broker-2, usan ESTE listener entre ellos, no el de host. Si esto
+      # quedara mal seteado (por ejemplo apuntando a PLAINTEXT_HOST), la
+      # replicación entre brokers intentaría salir por "localhost", cosa
+      # que dentro de cada contenedor no llega a ningún lado.
+
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093,2@kafka-controller-2:9093,3@kafka-controller-3:9093
+      # La MISMA lista que en los controllers. Así este broker sabe a quién
+      # pedirle metadatos (crear topics, descubrir líderes, etc.) aunque
+      # él mismo no vote.
+
+      CLUSTER_ID: "nj6FkhxMSziZjohauptJkQ"
+      # Mismo cluster.id que todo el resto — obligatorio.
+
+      # --- Ahora sí tiene sentido usar replication factor 3 ---------------
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      # Con 3 brokers reales, los topics internos (offsets, transaction
+      # state) pueden replicarse de verdad. MIN_ISR=2 significa: para que
+      # una escritura se confirme, al menos 2 de las 3 réplicas deben tener
+      # el dato — tolera la caída de 1 broker sin perder disponibilidad de
+      # escritura ni datos.
+
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      # Replication factor por defecto para topics nuevos creados sin
+      # especificarlo explícitamente (ej. por auto-create).
+
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      # Mismo criterio que arriba pero aplicado como default general del
+      # cluster para topics de usuario (order-service, products-service,
+      # etc.), no solo los internos.
+
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # En este setup ya lo apagamos: con 3 brokers reales, conviene crear
+      # cada topic explícitamente controlando particiones/RF, tal como ya
+      # venís haciendo vos.
+
+    volumes:
+      - kafka_broker_1_data:/var/lib/kafka/data
+
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1" ]
+      # Usamos localhost:9092 — el puerto del listener PLAINTEXT_HOST,
+      # que es el que este contenedor tiene bindeado internamente en el
+      # puerto 9092 (el mapeo a 9094/9096 en el host es solo para acceso
+      # EXTERNO; desde adentro del propio contenedor, el puerto real
+      # sigue siendo 9092 en los tres brokers, solo cambia afuera).
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      # start_period un poco más largo que en single-node: este broker
+      # necesita primero poder contactar exitosamente a los 3 controllers
+      # (vía KAFKA_CONTROLLER_QUORUM_VOTERS) antes de terminar de
+      # inicializarse — si el quorum tardó en formarse, el broker tarda
+      # más en quedar "Ready".
+
+  # ===========================================================================
+  # BROKER 2 — mismo patrón que broker-1. Cambia: NODE_ID, hostname,
+  # puerto de host (9094), y las advertised listeners apuntan a sí mismo.
+  # ===========================================================================
+  kafka-broker-2:
+    <<: *kafka-common
+    container_name: kafka-broker-2
+    hostname: kafka-broker-2
+    depends_on:
+      kafka-controller-1:
+        condition: service_healthy
+      kafka-controller-2:
+        condition: service_healthy
+      kafka-controller-3:
+        condition: service_healthy
+    ports:
+      - "9094:9092"
+      # Puerto de host distinto (9094) — el puerto DENTRO del contenedor
+      # sigue siendo 9092, pero afuera cada broker necesita su propio
+      # puerto porque comparten la misma máquina host.
+    environment:
+      KAFKA_NODE_ID: 5
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9094,PLAINTEXT_INTERNAL://kafka-broker-2:29092
+      # Nota el "9094" acá: es el puerto de HOST real por el que se llega
+      # a este broker desde afuera, aunque adentro siga escuchando 9092.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093,2@kafka-controller-2:9093,3@kafka-controller-3:9093
+      CLUSTER_ID: "nj6FkhxMSziZjohauptJkQ"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka_broker_2_data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ===========================================================================
+  # BROKER 3 — mismo patrón. Puerto de host 9096.
+  # ===========================================================================
+  kafka-broker-3:
+    <<: *kafka-common
+    container_name: kafka-broker-3
+    hostname: kafka-broker-3
+    depends_on:
+      kafka-controller-1:
+        condition: service_healthy
+      kafka-controller-2:
+        condition: service_healthy
+      kafka-controller-3:
+        condition: service_healthy
+    ports:
+      - "9096:9092"
+    environment:
+      KAFKA_NODE_ID: 6
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9096,PLAINTEXT_INTERNAL://kafka-broker-3:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093,2@kafka-controller-2:9093,3@kafka-controller-3:9093
+      CLUSTER_ID: "nj6FkhxMSziZjohauptJkQ"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka_broker_3_data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # KAFKA UI (Provectus)
+  # Panel de control visual. Permite ver:
+  #   - Topics y sus mensajes en tiempo real
+  #   - Consumer groups y sus offsets (lag)
+  #   - Estado de los conectores Debezium
+  # Acceso: http://localhost:8080
+  # ─────────────────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "5901:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-broker-1:29092,kafka-broker-2:29092,kafka-broker-3:29092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+      # Le damos los 3 brokers (por su listener interno) para que kafka-ui
+      # pueda descubrir el cluster completo aunque uno esté caído.
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+
+#  kafka:
+#    image: confluentinc/cp-kafka:7.5.0
+#    container_name: kafka_mensajes
+#    restart: unless-stopped
+#    depends_on:
+#      zookeeper:
+#        condition: service_healthy
+#    ports:
+#      - "9092:9092"
+#    environment:
+#      KAFKA_BROKER_ID: 1
+#      KAFKA_ZOOKEEPER_CONNECT: zookeeper:22181
+#
+#      # Dos listeners: interno (entre contenedores) y externo (host → Docker)
+#      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+#      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+#
+#      # Replicación factor 1 (solo 1 broker en local).
+#      # EN PRODUCCIÓN: mínimo 3 brokers y factor=3
+#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+#      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+#      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+#
+#      # Retención: guarda los mensajes 7 días o hasta 1GB por partición
+#      KAFKA_LOG_RETENTION_HOURS: 168
+#      KAFKA_LOG_RETENTION_BYTES: 1073741824
+#
+#      # Permite crear topics automáticamente (Debezium los crea por ti)
+#      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+#
+#      # Número de particiones por defecto. En producción ajusta según throughput esperado.
+#      KAFKA_NUM_PARTITIONS: 3
+#    volumes:
+#      - kafka_data:/var/lib/kafka/data
+#    healthcheck:
+#      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+#      interval: 15s
+#      timeout: 10s
+#      retries: 5
 
   # ─────────────────────────────────────────────────────────────────────────
   # KAFKA CONNECT con DEBEZIUM
@@ -129,15 +515,19 @@ services:
     container_name: kafka_connect_mensajes
     restart: unless-stopped
     depends_on:
-      kafka:
-        condition: service_healthy
       postgres:
+        condition: service_healthy
+      kafka-broker-1:
+        condition: service_healthy
+      kafka-broker-2:
+        condition: service_healthy
+      kafka-broker-3:
         condition: service_healthy
     ports:
       - "8083:8083"
     environment:
       # Dónde está el broker Kafka (red interna Docker)
-      BOOTSTRAP_SERVERS: kafka:29092
+      BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29092,kafka-broker-3:29092
 
       # ID único del grupo de workers (para alta disponibilidad)
       GROUP_ID: connect-cluster-mensajes
@@ -175,20 +565,20 @@ services:
   #   - Estado de los conectores Debezium
   # Acceso: http://localhost:8080
   # ─────────────────────────────────────────────────────────────────────────
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka_ui_mensajes
-    restart: unless-stopped
-    depends_on:
-      - kafka
-      - kafka-connect
-    ports:
-      - "5901:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local-cluster
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium-connect
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+#  kafka-ui:
+#    image: provectuslabs/kafka-ui:latest
+#    container_name: kafka_ui_mensajes
+#    restart: unless-stopped
+#    depends_on:
+#      - kafka
+#      - kafka-connect
+#    ports:
+#      - "5901:8080"
+#    environment:
+#      KAFKA_CLUSTERS_0_NAME: local-cluster
+#      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+#      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium-connect
+#      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
 
   # ─────────────────────────────────────────────────────────────────────────
   # SPRING BOOT APP
@@ -214,26 +604,6 @@ services:
   #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
   #   profiles:
   #     - full-stack
-
-  akhq:
-    image: tchiotludo/akhq:latest
-    container_name: akhq
-    restart: unless-stopped
-    depends_on:
-      - kafka
-      - kafka-connect
-    ports:
-      - "5902:8080"
-    environment:
-      AKHQ_CONFIGURATION: |
-        akhq:
-          connections:
-            local:
-              properties:
-                bootstrap.servers: "kafka:29092"
-              connect:
-                - name: debezium-connect
-                  url: "http://kafka-connect:8083"
 
   redis:
     image: redis:7-alpine
@@ -332,12 +702,66 @@ services:
     networks:
       - microservices-net
 
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: prometheus
+    volumes:
+      # Montamos nuestro archivo de config dentro del contenedor.
+      # :ro = read-only, buena práctica para que el contenedor no
+      # pueda modificar su propia config.
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Volumen nombrado para persistir los datos de series temporales
+      # entre reinicios del contenedor (si no, pierdes el historial
+      # cada vez que haces docker-compose down).
+      - prometheus_data:/prometheus
+    command:
+      # Le decimos explícitamente dónde está su archivo de config
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      # Cuánto tiempo retiene los datos antes de purgarlos (default 15d)
+      - '--storage.tsdb.retention.time=15d'
+    ports:
+      - "9090:9090"
+    networks:
+      - microservices-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    environment:
+      # Credenciales por defecto para el primer login.
+      # En producción esto NUNCA debería ir así en texto plano,
+      # sino en un secret o variable de entorno inyectada externamente.
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Permite que Grafana auto-registre el datasource de Prometheus
+      # sin que tengas que hacerlo manualmente por la UI (ver sección 6)
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # Provisioning automático: le pasamos archivos de config que
+      # Grafana lee al arrancar para auto-configurar datasources
+      # y dashboards, sin intervención manual.
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - microservices-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   mongo_data:
-  kafka_data:
-  zookeeper_data:
-  zookeeper_log:
+  kafka_controller_1_data:
+  kafka_controller_2_data:
+  kafka_controller_3_data:
+  kafka_broker_1_data:
+  kafka_broker_2_data:
+  kafka_broker_3_data:
+  prometheus_data:
+  grafana_data:
   redis_data:
   jenkins_home:
     name: jenkins_home

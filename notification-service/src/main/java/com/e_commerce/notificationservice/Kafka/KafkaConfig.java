@@ -1,5 +1,6 @@
 package com.e_commerce.notificationservice.Kafka;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.configuration.ConversionException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -19,6 +20,8 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.serializer.DeserializationException;
+import org.springframework.messaging.converter.MessageConversionException;
+import org.springframework.messaging.handler.invocation.MethodArgumentResolutionException;
 import org.springframework.util.backoff.ExponentialBackOff;
 import org.springframework.util.backoff.FixedBackOff;
 
@@ -115,7 +118,11 @@ public class KafkaConfig {
         // sentido reintentarlo → va directo a DLQ sin esperar.
         handler.addNotRetryableExceptions(
                 DeserializationException.class,   // JSON malformado
-                IllegalArgumentException.class    // datos de negocio inválidos
+                IllegalArgumentException.class,    // datos de negocio inválidos
+                MessageConversionException.class,
+                ConversionException.class,
+                MethodArgumentResolutionException.class,
+                ClassCastException.class
         );
 
         return handler;
@@ -191,10 +198,7 @@ public class KafkaConfig {
         // Con 3 particiones → 3 threads, cada uno procesa 1 partición.
         factory.setConcurrency(3);
 
-        // MANUAL_IMMEDIATE: el consumer llama a ack.acknowledge() manualmente
-        // cuando termina de procesar. Si no llama a acknowledge(), Kafka
-        // reenvía el mensaje en el siguiente poll.
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.BATCH);
 
         return factory;
     }
@@ -204,7 +208,7 @@ public class KafkaConfig {
         DefaultErrorHandler handler = new DefaultErrorHandler(
                 (record, exception) -> {
                     log.error(
-                            "❌ Error procesando mensaje del DLQ. Topic: {}, Partition: {}, Offset: {}, Key: {}. Error: {}",
+                            "❌ Error, procesando mensaje del DLQ. Topic: {}, Partition: {}, Offset: {}, Key: {}. Error: {}",
                             record.topic(),
                             record.partition(),
                             record.offset(),

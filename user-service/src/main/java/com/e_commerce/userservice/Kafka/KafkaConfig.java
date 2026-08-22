@@ -4,6 +4,7 @@ import com.e_commerce.userservice.Dto.UserCreatedValidationEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.CooperativeStickyAssignor;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -60,18 +61,25 @@ public class KafkaConfig {
         config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
 
         // Tiempo máximo entre dos llamadas a poll(). Si el procesamiento es lento, aumentarlo para evitar rebalanceos.
-        config.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000);
-
-        // Tiempo sin heartbeat antes de declarar muerto al consumer. No debe ser menor que el GC pause máximo esperado.
-        config.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 45000);
+        config.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000); // por defecto 5 min, si demora mas kafka piensa que el consumidor murio y lo expulsa del grupo
 
         // Debe ser ~1/3 de session.timeout.ms. El heartbeat corre en un hilo separado del procesamiento.
-        config.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 3000);
+        config.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 3000); // 3seg por defecto
 
-        //config.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, "CooperativeStickyAssignor");
+        // Tiempo sin heartbeat antes de declarar muerto al consumer. No debe ser menor que el GC pause máximo esperado.
+        config.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 45000); // 45seg por defecto
+
+        // Configuración de la estrategia cooperativa, en un revalanceo solo se detiene las particiones afectadas
+        config.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, CooperativeStickyAssignor.class.getName());
 
         // El broker espera hasta tener al menos N bytes para responder al fetch. Reduce peticiones vacías.
         config.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1024);
+
+        // Limite máximo de datos que el broker envia en cada poll, por defecto 50MB, de igul forma si en el primer poll se supera lo envia de igual manera
+        config.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 30000);
+
+        // Establece el número máximo de bytes que el servidor devolverá por cada partición individual. Por defecto es 1 MB. Ayuda a dimensionar la memoria RAM que consumirá el cliente.
+        config.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 1024);
 
 
         return new DefaultKafkaConsumerFactory<>(config);
@@ -97,10 +105,10 @@ public class KafkaConfig {
         // Con 3 particiones → 3 threads, cada uno procesa 1 partición.
         factory.setConcurrency(3);
 
-        // MANUAL_IMMEDIATE: el consumer llama a ack.acknowledge() manualmente
+        // MANUAL: el consumer llama a ack.acknowledge() manualmente
         // cuando termina de procesar. Si no llama a acknowledge(), Kafka
         // reenvía el mensaje en el siguiente poll.
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
 
         // ─────────────────────────────────────────────────────────────────
         // ESTRATEGIA DE REINTENTOS CON BACKOFF EXPONENCIAL

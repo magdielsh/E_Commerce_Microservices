@@ -1,0 +1,62 @@
+# prometheus.yml
+
+global:
+  # Cada cuánto Prometheus scrapea TODOS los targets, salvo que
+  # un job específico lo sobreescriba.
+  scrape_interval: 15s
+  # Cada cuánto evalúa reglas de alerta (no las usaremos aún, pero
+  # es buena práctica dejarlo configurado desde ya)
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus se monitorea a sí mismo. Útil para ver si el propio
+  # Prometheus está saludable (uso de memoria, tiempo de scrape, etc.)
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'gateway'
+    metrics_path: '/actuator/prometheus'  # el endpoint que expusimos arriba
+    scrape_interval: 10s                   # override del global, si quieres más granularidad aquí
+    static_configs:
+      # OJO: "gateway" aquí es el nombre del SERVICIO en docker-compose,
+      # no "localhost". Docker Compose crea una red interna donde los
+      # contenedores se resuelven por nombre (DNS interno de Docker).
+      - targets: ['gateway:7080']
+        labels:
+          service: gateway
+
+#  - job_name: 'order-service'
+#    metrics_path: '/actuator/prometheus'
+#    static_configs:
+#      - targets: ['order-service:8081']  # ajusta el puerto real de tu servicio
+#        labels:
+#          service: order-service
+#
+#  - job_name: 'products-service'
+#    metrics_path: '/actuator/prometheus'
+#    static_configs:
+#      - targets: ['products-service:8082']
+#        labels:
+#          service: products-service
+#
+#  - job_name: 'reviews-service'
+#    metrics_path: '/actuator/prometheus'
+#    static_configs:
+#      - targets: ['reviews-service:8083']
+#        labels:
+#          service: reviews-service
+#
+#  - job_name: 'account-service'
+#    metrics_path: '/actuator/prometheus'
+#    static_configs:
+#      - targets: ['account-service:8084']
+#        labels:
+#          service: account-service
+#
+#  - job_name: 'eureka-server'
+#    metrics_path: '/actuator/prometheus'
+#    static_configs:
+#      - targets: ['eureka-server:8761']
+#        labels:
+#          service: eureka-server
