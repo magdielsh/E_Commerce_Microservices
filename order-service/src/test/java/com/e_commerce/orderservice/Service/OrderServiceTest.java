@@ -84,7 +84,7 @@ class OrderServiceTest {
      */
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(productClient);
+        //orderService = new OrderService(productClient);
     }
 
     // ════════════════════════════════════════════════════════════════════
