@@ -15,7 +15,7 @@ RUN groupadd -g 1000 spring && \
 WORKDIR /app
 
 # ARG recibido desde Jenkins (buildSpringService.groovy) con la ruta exacta
-# del jar compilado por Maven en el agente. El valor por defecto sirve para hacer
+# del jar compilado por Maven en el agente. El valor por defecto sirve para
 # builds manuales locales (docker build -f account-service/Dockerfile .)
 #ARG JAR_FILE=account-service/target/*.jar
 
