@@ -159,7 +159,7 @@ pipeline {
         // no uno detrás del otro. Ahorra tiempo cuando ambos cambiaron.
         stage('Complile & Test') {
             when {
-                expression { env.CHANGES != 'true' }
+                expression { env.CHANGES == 'true' }
             }
             parallel {
                 // -------- Gateway --------
@@ -271,7 +271,7 @@ pipeline {
             agent any
             when {
                 expression {
-                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES != 'true')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
                 }
             }
             steps {
@@ -302,7 +302,7 @@ pipeline {
             agent any
             when {
                 expression {
-                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES != 'true')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
                 }
             }
             steps {
@@ -339,7 +339,7 @@ pipeline {
             //            }
             when {
                 expression {
-                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES != 'true')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
                 }
             }
             steps {
