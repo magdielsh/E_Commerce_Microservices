@@ -195,7 +195,6 @@ resilience4j:
         # Esto evita que múltiples instancias reintenten exactamente al mismo tiempo.
         exponentialRandomBackoffMultiplier: 0.5  # Añade una variación de +/- 50% al tiempo calculado
 
-
         # Límite del backoff para no esperar infinitamente.
         # Sin esto: con mult=2 y waitDuration=500ms → 500 → 1000 → 2000 → 4000...
         # Con maxWait=5s: 500 → 1000 → 2000 → 5000 → 5000 (se topa).
