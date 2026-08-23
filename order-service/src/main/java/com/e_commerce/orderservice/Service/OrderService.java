@@ -57,10 +57,7 @@ public class OrderService {
      */
     private final ProductClient productClient;
 
-    @Lazy
-    private final OrderService self;
-
-    private final ProductClientFallbackFactory productClientFallbackFactory;
+    private final OrderServiceFeing orderServiceFeing;
 
     // Store en memoria para las órdenes
     private final Map<Long, OrderEntity> orderStore = new ConcurrentHashMap<>();
@@ -109,7 +106,7 @@ public class OrderService {
              */
             log.info("Consultando producto ID={} en products-service", itemRequest.getProductId());
 
-            ProductDTO.Response product = self.getProductById(itemRequest.getProductId());
+            ProductDTO.Response product = orderServiceFeing.getProductById(itemRequest.getProductId());
             //productClient.getProductById(itemRequest.getProductId());
             // ↑ Esta línea puede:
             //   a) Devolver el DTO del producto (éxito)
@@ -199,14 +196,8 @@ public class OrderService {
                  */
                 log.info("Descontando {} unidades del producto {}", item.getQuantity(), item.getProductId());
 
-                self.updateProductStock(
-                        item.getProductId(),
-                        new ProductClient.StockUpdateRequest(-item.getQuantity())
-                );
-//                productClient.updateProductStock(
-//                        item.getProductId(),
-//                        new ProductClient.StockUpdateRequest(-item.getQuantity()) // ← negativo
-//                );
+                ProductDTO.Response productDTO = orderServiceFeing.updateProductStock(item.getProductId(),
+                        new ProductClient.StockUpdateRequest(-item.getQuantity()));
 
                 log.debug("Stock descontado: productId={}, cantidad=-{}", item.getProductId(), item.getQuantity());
             }
@@ -241,30 +232,7 @@ public class OrderService {
         return OrderDTO.Response.from(order);
     }
 
-    @Retry(name = "products-service")
-    @CircuitBreaker(name = "products-service")
-    @Bulkhead(name = "productsBulkhead", type = Bulkhead.Type.SEMAPHORE, fallbackMethod = "fallbackgetProductById")
-    public ProductDTO.Response getProductById(Long id) {
-        return productClient.getProductById(id);
-    }
 
-    @Retry(name = "products-service")
-    @CircuitBreaker(name = "products-service")
-    @Bulkhead(name = "productsBulkhead", type = Bulkhead.Type.SEMAPHORE, fallbackMethod = "fallbackupdateProductStock")
-    public ProductDTO.Response updateProductStock(Long productId, ProductClient.StockUpdateRequest request) {
-        return productClient.updateProductStock(productId, request);
-    }
-
-    // --- FALLBACKS INDEPENDIENTES REUTILIZANDO EL FACTORY ---
-    public ProductDTO.Response fallbackgetProductById(Long id, Throwable t) {
-        ProductClient clientFallback = productClientFallbackFactory.create(t);
-        return clientFallback.getProductById(id);
-    }
-
-    public ProductDTO.Response fallbackupdateProductStock(Long productId, ProductClient.StockUpdateRequest request, Throwable t) {
-        ProductClient clientFallback = productClientFallbackFactory.create(t);
-        return clientFallback.updateProductStock(productId, request);
-    }
 
     // ──────────────────────────────────────────────────────────────────
     // OTROS MÉTODOS

@@ -5,6 +5,54 @@ spring:
   application:
     name: order-service
 
+  # ---------------------------------------------------------------------
+  # DATABASE CONFIGURATION (JPA/Hibernate)
+  # ---------------------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://localhost:5432/order_service_mc
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Maximum pool size
+      maximum-pool-size: 10
+      # Minimum idle connections
+      minimum-idle: 5
+      # Connection timeout (ms)
+      connection-timeout: 30000
+      # Idle timeout (ms)
+      idle-timeout: 600000
+      # Max lifetime (ms)
+      max-lifetime: 1800000
+      # Pool name for logging
+      pool-name: AccountServiceHikariPool
+
+  # ---------------------------------------------------------------------
+  # JPA/HIBERNATE CONFIGURATION
+  # ---------------------------------------------------------------------
+  jpa:
+    # Show SQL en logs (para desarrollo)
+    show-sql: true
+    # Hibernate ddl-auto:
+    # - none: No hace nada (usar con schema.sql)
+    # - validate: Valida esquema (production)
+    # - update: Actualiza esquema (dev)
+    # - create: Crea tablas (dev)
+    # - create-drop: Crea y borra (test)
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        # order_inserts: Mejora performance en batch
+        order_inserts: true
+        # order_updates: Mejora performance en batch
+        order_updates: true
+        # jdbc:batch_versioned_data: Soporta RETURNING
+        batch_versioned_data: true
+
   cloud:
     openfeign:
       httpclient:
@@ -161,7 +209,6 @@ resilience4j:
           - java.io.IOException
           - java.util.concurrent.TimeoutException
           - java.net.SocketTimeoutException
-          - io.github.resilience4j.timelimiter.webclient.CircuitBreakerTimeoutException
           - com.e_commerce.orderservice.Exceptions.OrderExceptions.ServiceException
           - feign.RetryableException # lanzada por el ErrorDecoder para 503/502/504
 
@@ -211,55 +258,6 @@ resilience4j:
         delivery.timeout.ms: 120000
         linger.ms: 20
         compression.type: snappy
-
-  # ---------------------------------------------------------------------
-  # DATABASE CONFIGURATION (JPA/Hibernate)
-  # ---------------------------------------------------------------------
-  datasource:
-    url: jdbc:postgresql://localhost:5432/order_service_mc
-    username: postgres
-    password: postgres
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      # Maximum pool size
-      maximum-pool-size: 10
-      # Minimum idle connections
-      minimum-idle: 5
-      # Connection timeout (ms)
-      connection-timeout: 30000
-      # Idle timeout (ms)
-      idle-timeout: 600000
-      # Max lifetime (ms)
-      max-lifetime: 1800000
-      # Pool name for logging
-      pool-name: AccountServiceHikariPool
-
-  # ---------------------------------------------------------------------
-  # JPA/HIBERNATE CONFIGURATION
-  # ---------------------------------------------------------------------
-  jpa:
-    # Show SQL en logs (para desarrollo)
-    show-sql: true
-    # Hibernate ddl-auto:
-    # - none: No hace nada (usar con schema.sql)
-    # - validate: Valida esquema (production)
-    # - update: Actualiza esquema (dev)
-    # - create: Crea tablas (dev)
-    # - create-drop: Crea y borra (test)
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        jdbc:
-          batch_size: 20
-        # order_inserts: Mejora performance en batch
-        order_inserts: true
-        # order_updates: Mejora performance en batch
-        order_updates: true
-        # jdbc:batch_versioned_data: Soporta RETURNING
-        batch_versioned_data: true
-
 
 
 # -----------------------------------------------------------------------------
@@ -330,3 +328,6 @@ springdoc:
 services:
   products:
     url: products-service
+
+gateway:
+  secret: ${GATEWAY_SECRET}

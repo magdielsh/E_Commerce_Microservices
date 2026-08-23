@@ -17,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtExceptionFilter jwtExceptionFilter;
+    //private final JwtExceptionFilter jwtExceptionFilter;
     private final InternalRequestFilter internalRequestFilter;
 
     @Bean
