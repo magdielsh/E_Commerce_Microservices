@@ -115,7 +115,7 @@ pipeline {
                         returnStdout: true
                     ).trim().split('\n')
 
-                    env.NO_CHANGE = 'false'
+                    env.CHANGES = 'true'
                     env.GIT_USER_MODIFICATION = sh(script: "git show -s --pretty=%an", returnStdout: true).trim()
 
                     env.ACCOUNT_CHANGED    = changedFiles.any { it.startsWith('account-service/') || it == 'Jenkinsfile' } ? 'true' : 'false'
@@ -145,7 +145,7 @@ pipeline {
                     if (env.ACCOUNT_CHANGED == 'false' && env.EUREKA_CHANGED == 'false' &&  env.GATEWAY_CHANGED  == 'false' && env.ORDER_CHANGED == 'false' && env.PRODUCTS_CHANGED == 'false') {
                         echo "✅ No hay cambios en servicios monitoreados. Pipeline finalizado."
                         currentBuild.result = 'SUCCESS'
-                        env.NO_CHANGE = 'true'
+                        env.CHANGES = 'false'
                     }
 
                 }
@@ -159,7 +159,7 @@ pipeline {
         // no uno detrás del otro. Ahorra tiempo cuando ambos cambiaron.
         stage('Complile & Test') {
             when {
-                expression { env.NO_CHANGE != 'false' }
+                expression { env.CHANGES != 'true' }
             }
             parallel {
                 // -------- Gateway --------
@@ -271,7 +271,7 @@ pipeline {
             agent any
             when {
                 expression {
-                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES != 'true')
                 }
             }
             steps {
@@ -302,7 +302,7 @@ pipeline {
             agent any
             when {
                 expression {
-                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES != 'true')
                 }
             }
             steps {
@@ -339,7 +339,7 @@ pipeline {
             //            }
             when {
                 expression {
-                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES != 'true')
                 }
             }
             steps {
