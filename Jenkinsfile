@@ -115,6 +115,7 @@ pipeline {
                         returnStdout: true
                     ).trim().split('\n')
 
+                    env.NO_CHANGE = 'false'
                     env.GIT_USER_MODIFICATION = sh(script: "git show -s --pretty=%an", returnStdout: true).trim()
 
                     env.ACCOUNT_CHANGED    = changedFiles.any { it.startsWith('account-service/') || it == 'Jenkinsfile' } ? 'true' : 'false'
@@ -144,8 +145,7 @@ pipeline {
                     if (env.ACCOUNT_CHANGED == 'false' && env.EUREKA_CHANGED == 'false' &&  env.GATEWAY_CHANGED  == 'false' && env.ORDER_CHANGED == 'false' && env.PRODUCTS_CHANGED == 'false') {
                         echo "✅ No hay cambios en servicios monitoreados. Pipeline finalizado."
                         currentBuild.result = 'SUCCESS'
-                        // Usamos error controlado para salir limpiamente
-                        error('SKIP_PIPELINE')
+                        env.NO_CHANGE = 'true'
                     }
 
                 }
@@ -158,6 +158,9 @@ pipeline {
         // "parallel" hace que todos los bloques internos corran a la vez,
         // no uno detrás del otro. Ahorra tiempo cuando ambos cambiaron.
         stage('Complile & Test') {
+            when {
+                expression { env.NO_CHANGE != 'false' }
+            }
             parallel {
                 // -------- Gateway --------
                 stage('gateway') {
@@ -267,7 +270,9 @@ pipeline {
         stage('Package') {
             agent any
             when {
-                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+                expression {
+                    retun (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                }
             }
             steps {
                 script{
@@ -296,7 +301,9 @@ pipeline {
         stage('Docker Build') {
             agent any
             when {
-                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+                expression {
+                    retun (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                }
             }
             steps {
                 script{
@@ -331,7 +338,9 @@ pipeline {
             //                branch 'main'
             //            }
             when {
-                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+                expression {
+                    retun (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                }
             }
             steps {
                 script{
