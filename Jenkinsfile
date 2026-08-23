@@ -274,25 +274,67 @@ pipeline {
                     return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
                 }
             }
-            steps {
-                script{
-                    if(env.GATEWAY_CHANGED == 'true'){
+            parallel {
+                stage('gateway') {
+                    when {
+                        expression { env.GATEWAY_CHANGED == 'true' }
+                    }
+                    steps {
                         package_SpringService(servicePath: 'gateway')
                     }
-                    if(env.EUREKA_CHANGED == 'true'){
+                }
+                stage('eureka-server') {
+                    when {
+                        expression { env.EUREKA_CHANGED == 'true' }
+                    }
+                    steps {
                         package_SpringService(servicePath: 'eureka-server')
                     }
-                    if(env.ORDER_CHANGED == 'true'){
+                }
+                stage('order-service') {
+                    when {
+                        expression { env.ORDER_CHANGED == 'true' }
+                    }
+                    steps {
                         package_SpringService(servicePath: 'order-service')
                     }
-                    if (env.PRODUCTS_CHANGED == 'true') {
+                }
+                stage('product-service') {
+                    when {
+                        expression { env.PRODUCTS_CHANGED == 'true' }
+                    }
+                    steps {
                         package_SpringService(servicePath: 'product-service')
                     }
-                    if (env.ACCOUNT_CHANGED == 'true') {
+                }
+                stage('account-service') {
+                    when {
+                        expression { env.ACCOUNT_CHANGED == 'true' }
+                    }
+                    steps {
                         package_SpringService(servicePath: 'account-service')
                     }
                 }
             }
+            //            steps {
+            //                script{
+            //                    if(env.GATEWAY_CHANGED == 'true'){
+            //                        package_SpringService(servicePath: 'gateway')
+            //                    }
+            //                    if(env.EUREKA_CHANGED == 'true'){
+            //                        package_SpringService(servicePath: 'eureka-server')
+            //                    }
+            //                    if(env.ORDER_CHANGED == 'true'){
+            //                        package_SpringService(servicePath: 'order-service')
+            //                    }
+            //                    if (env.PRODUCTS_CHANGED == 'true') {
+            //                        package_SpringService(servicePath: 'product-service')
+            //                    }
+            //                    if (env.ACCOUNT_CHANGED == 'true') {
+            //                        package_SpringService(servicePath: 'account-service')
+            //                    }
+            //                }
+            //            }
         }
 
         // ---------------------------------------------------------
@@ -305,25 +347,67 @@ pipeline {
                     return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
                 }
             }
-            steps {
-                script{
-                    if(env.GATEWAY_CHANGED == 'true'){
+            parallel {
+                stage('gateway') {
+                    when {
+                        expression { env.GATEWAY_CHANGED == 'true' }
+                    }
+                    steps {
                         build_DockerService(servicePath: 'gateway', imageName: "${IMAGE_NAME_GATEWAY}", buildNumber: "${IMAGE_TAG}")
                     }
-                    if(env.EUREKA_CHANGED == 'true'){
+                }
+                stage('eureka-server') {
+                    when {
+                        expression { env.EUREKA_CHANGED == 'true' }
+                    }
+                    steps {
                         build_DockerService(servicePath: 'eureka-server', imageName: "${IMAGE_NAME_EUREKA}", buildNumber: "${IMAGE_TAG}")
                     }
-                    if(env.ORDER_CHANGED == 'true'){
+                }
+                stage('order-service') {
+                    when {
+                        expression { env.ORDER_CHANGED == 'true' }
+                    }
+                    steps {
                         build_DockerService(servicePath: 'order-service', imageName: "${IMAGE_NAME_ORDER}", buildNumber: "${IMAGE_TAG}")
                     }
-                    if (env.PRODUCTS_CHANGED == 'true') {
+                }
+                stage('product-service') {
+                    when {
+                        expression { env.PRODUCTS_CHANGED == 'true' }
+                    }
+                    steps {
                         build_DockerService(servicePath: 'product-service', imageName: "${IMAGE_NAME_PRODUCT}", buildNumber: "${IMAGE_TAG}")
                     }
-                    if (env.ACCOUNT_CHANGED == 'true') {
+                }
+                stage('account-service') {
+                    when {
+                        expression { env.ACCOUNT_CHANGED == 'true' }
+                    }
+                    steps {
                         build_DockerService(servicePath: 'account-service', imageName: "${IMAGE_NAME_ACCOUNT}", buildNumber: "${IMAGE_TAG}")
                     }
                 }
             }
+            //            steps {
+            //                script{
+            //                    if(env.GATEWAY_CHANGED == 'true'){
+            //                        build_DockerService(servicePath: 'gateway', imageName: "${IMAGE_NAME_GATEWAY}", buildNumber: "${IMAGE_TAG}")
+            //                    }
+            //                    if(env.EUREKA_CHANGED == 'true'){
+            //                        build_DockerService(servicePath: 'eureka-server', imageName: "${IMAGE_NAME_EUREKA}", buildNumber: "${IMAGE_TAG}")
+            //                    }
+            //                    if(env.ORDER_CHANGED == 'true'){
+            //                        build_DockerService(servicePath: 'order-service', imageName: "${IMAGE_NAME_ORDER}", buildNumber: "${IMAGE_TAG}")
+            //                    }
+            //                    if (env.PRODUCTS_CHANGED == 'true') {
+            //                        build_DockerService(servicePath: 'product-service', imageName: "${IMAGE_NAME_PRODUCT}", buildNumber: "${IMAGE_TAG}")
+            //                    }
+            //                    if (env.ACCOUNT_CHANGED == 'true') {
+            //                        build_DockerService(servicePath: 'account-service', imageName: "${IMAGE_NAME_ACCOUNT}", buildNumber: "${IMAGE_TAG}")
+            //                    }
+            //                }
+            //            }
         }
 
         // --------------------------------------------------------------------
@@ -342,11 +426,12 @@ pipeline {
                     return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
                 }
             }
-            steps {
-                script{
-                    // Solo hacemos deploy de la imagen del servicio que
-                    // realmente cambió (o si es la primera vez, ambos)
-                    if (env.GATEWAY_CHANGED == 'true') {
+            parallel {
+                stage('gateway') {
+                    when {
+                        expression { env.GATEWAY_CHANGED == 'true' }
+                    }
+                    steps {
                         deploy_DockerService(
                             servicePath: 'gateway',
                             imageName: "${IMAGE_NAME_GATEWAY}",
@@ -356,7 +441,12 @@ pipeline {
                             imagePort: '7080'
                         )
                     }
-                    if (env.EUREKA_CHANGED == 'true') {
+                }
+                stage('eureka-server') {
+                    when {
+                        expression { env.EUREKA_CHANGED == 'true' }
+                    }
+                    steps {
                         deploy_DockerService(
                             servicePath: 'eureka-server',
                             imageName: "${IMAGE_NAME_EUREKA}",
@@ -365,7 +455,26 @@ pipeline {
                             imagePort: '8761'
                         )
                     }
-                    if (env.PRODUCTS_CHANGED == 'true') {
+                }
+                stage('order-service') {
+                    when {
+                        expression { env.ORDER_CHANGED == 'true' }
+                    }
+                    steps {
+                        deploy_DockerService(
+                            servicePath: 'order-service',
+                            imageName: "${IMAGE_NAME_ORDER}",
+                            jwtSecret: false,
+                            jenkinsNet: "${NETWORK}",
+                            imagePort: '7198'
+                        )
+                    }
+                }
+                stage('product-service') {
+                    when {
+                        expression { env.PRODUCTS_CHANGED == 'true' }
+                    }
+                    steps {
                         deploy_DockerService(
                             servicePath: 'products-service',
                             imageName: "${IMAGE_NAME_PRODUCT}",
@@ -374,25 +483,12 @@ pipeline {
                             imagePort: '7095'
                         )
                     }
-                    if(env.ORDER_CHANGED == 'true'){
-                        deploy_DockerService(
-                            servicePath: 'order-service',
-                            imageName: "${IMAGE_NAME_ORDER}",
-                            jwtSecret: false,
-                            jenkinsNet: "${NETWORK}",
-                            imagePort: '7198'
-                        )
-                        //                        sh  """
-                        //                          docker stop order-service || true
-                        //                          docker rm order-service || true
-                        //                          docker run -d \
-                        //                            --name order-service \
-                        //                            --network ${NETWORK} \
-                        //                            -p 7198:7198 \
-                        //                            ${IMAGE_NAME_ORDER}:latest
-                        //                           """
+                }
+                stage('account-service') {
+                    when {
+                        expression { env.ACCOUNT_CHANGED == 'true' }
                     }
-                    if(env.ACCOUNT_CHANGED == 'true'){
+                    steps {
                         deploy_DockerService(
                             servicePath: 'account-service',
                             imageName: "${IMAGE_NAME_ACCOUNT}",
@@ -400,21 +496,82 @@ pipeline {
                             jenkinsNet: "${NETWORK}",
                             imagePort: '6589'
                         )
-                        //                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
-                        //                            sh  '''
-                        //                                  docker stop account-service || true
-                        //                                  docker rm account-service || true
-                        //                                  docker run -d \
-                        //                                    --name account-service \
-                        //                                    --network ${NETWORK} \
-                        //                                    -e JWT_SECRET="${JWT}" \
-                        //                                    -p 6589:6589 \
-                        //                                    ${IMAGE_NAME_ACCOUNT}:latest
-                        //                           '''
-                        //                        }
                     }
                 }
             }
+//            steps {
+            //                script{
+            //                    // Solo hacemos deploy de la imagen del servicio que
+            //                    // realmente cambió (o si es la primera vez, ambos)
+            //                    if (env.GATEWAY_CHANGED == 'true') {
+            //                        deploy_DockerService(
+            //                            servicePath: 'gateway',
+            //                            imageName: "${IMAGE_NAME_GATEWAY}",
+            //                            jwtSecret: true,
+            //                            gatewaySecret: true,
+            //                            jenkinsNet: "${NETWORK}",
+            //                            imagePort: '7080'
+            //                        )
+            //                    }
+            //                    if (env.EUREKA_CHANGED == 'true') {
+            //                        deploy_DockerService(
+            //                            servicePath: 'eureka-server',
+            //                            imageName: "${IMAGE_NAME_EUREKA}",
+            //                            jwtSecret: false,
+            //                            jenkinsNet: "${NETWORK}",
+            //                            imagePort: '8761'
+            //                        )
+            //                    }
+            //                    if (env.PRODUCTS_CHANGED == 'true') {
+            //                        deploy_DockerService(
+            //                            servicePath: 'products-service',
+            //                            imageName: "${IMAGE_NAME_PRODUCT}",
+            //                            jwtSecret: false,
+            //                            jenkinsNet: "${NETWORK}",
+            //                            imagePort: '7095'
+            //                        )
+            //                    }
+            //                    if(env.ORDER_CHANGED == 'true'){
+            //                        deploy_DockerService(
+            //                            servicePath: 'order-service',
+            //                            imageName: "${IMAGE_NAME_ORDER}",
+            //                            jwtSecret: false,
+            //                            jenkinsNet: "${NETWORK}",
+            //                            imagePort: '7198'
+            //                        )
+            //                        //                        sh  """
+            //                        //                          docker stop order-service || true
+            //                        //                          docker rm order-service || true
+            //                        //                          docker run -d \
+            //                        //                            --name order-service \
+            //                        //                            --network ${NETWORK} \
+            //                        //                            -p 7198:7198 \
+            //                        //                            ${IMAGE_NAME_ORDER}:latest
+            //                        //                           """
+            //                    }
+            //                    if(env.ACCOUNT_CHANGED == 'true'){
+            //                        deploy_DockerService(
+            //                            servicePath: 'account-service',
+            //                            imageName: "${IMAGE_NAME_ACCOUNT}",
+            //                            jwtSecret: true,
+            //                            jenkinsNet: "${NETWORK}",
+            //                            imagePort: '6589'
+            //                        )
+            //                        //                        withCredentials([string(credentialsId: 'jwt_secret', variable: 'JWT')]) {
+            //                        //                            sh  '''
+            //                        //                                  docker stop account-service || true
+            //                        //                                  docker rm account-service || true
+            //                        //                                  docker run -d \
+            //                        //                                    --name account-service \
+            //                        //                                    --network ${NETWORK} \
+            //                        //                                    -e JWT_SECRET="${JWT}" \
+            //                        //                                    -p 6589:6589 \
+            //                        //                                    ${IMAGE_NAME_ACCOUNT}:latest
+            //                        //                           '''
+            //                        //                        }
+            //                    }
+            //                }
+            //            }
         }
     }
 
