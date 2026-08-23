@@ -41,8 +41,11 @@ spring:
 # ── Resilience4j: Circuit Breaker por instancia ──
 # -----------------------------------------------------------------------------
 resilience4j:
+  aspect:
+    bulkhead-order: 1
+    circuitbreaker-order: 2
+    retry-order: 3
   bulkhead:
-    bulkheadAspectOrder: 1
     instances:
       productsBulkhead:
         # Número máximo de hilos simultáneos permitidos en este componente
@@ -51,7 +54,7 @@ resilience4j:
         maxWaitDuration: 20ms
 
   circuitbreaker:
-    circuitBreakerAspectOrder: 2
+   # circuitBreakerAspectOrder: 2
     configs:
       default:
         # Número de llamadas en la ventana deslizante a evaluar
@@ -118,7 +121,7 @@ resilience4j:
 
   # ── Retry: reintentos con backoff exponencial ──
   retry:
-    retryAspectOrder: 3
+    #retryAspectOrder: 3
     instances:
       products-service:
         # Intentos TOTALES (el original + los reintentos).

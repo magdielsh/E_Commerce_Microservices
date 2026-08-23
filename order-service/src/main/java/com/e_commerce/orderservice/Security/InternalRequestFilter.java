@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,6 +26,9 @@ import java.util.List;
 @Setter
 public class InternalRequestFilter extends OncePerRequestFilter {
 
+    @Value("${gateway.secret}")
+    private String gateway_Secret;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
@@ -32,6 +36,18 @@ public class InternalRequestFilter extends OncePerRequestFilter {
         String authenticated = request.getHeader("X-Authenticated");
         String userEmail = request.getHeader("X-User-Email");
         String rolesHeader = request.getHeader("X-User-Role"); // "ROLE_ADMIN,ROLE_USER"
+        String gatewaySecret   = request.getHeader("X-Gateway-Secret");
+
+        if (!gatewaySecret.equalsIgnoreCase(gateway_Secret)) {
+            log.warn("⛔ Petición directa rechazada, procedencia no confirmada, (sin gateway): {} {}",
+                    request.getMethod(), request.getRequestURI());
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            response.getWriter().write(
+                    "{\"error\": \"Acceso solo permitido a través del gateway\"}"
+            );
+            return; // cortamos la cadena: el controller nunca se ejecuta
+        }
 
         String test = request.getRequestURI();
         if (request.getRequestURI().startsWith("/actuator/circuitbreakers")) {

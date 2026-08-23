@@ -342,6 +342,7 @@ pipeline {
                             servicePath: 'gateway',
                             imageName: "${IMAGE_NAME_GATEWAY}",
                             jwtSecret: true,
+                            gatewaySecret: true,
                             jenkinsNet: "${NETWORK}",
                             imagePort: '7080'
                         )
