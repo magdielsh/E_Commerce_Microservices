@@ -20,7 +20,7 @@ spring:
           enabled: true
       routes:
         - id: auth-service
-          uri: lb://auth-service
+          uri: lb://account-service
           predicates:
             - Path=/v1/api/auth/**
           filters:
@@ -30,8 +30,10 @@ spring:
                 statuses: BAD_GATEWAY, SERVICE_UNAVAILABLE
                 methods: GET
                 backoff:
-                  firstBackoff: 50ms
-                  maxBackoff: 500ms
+                  firstBackoff: 100ms       # Tiempo de espera inicial para el primer reintento
+                  maxBackoff: 2000ms        # Tiempo de espera máximo permitido (tope de la curva)
+                  factor: 2                 # Multiplicador exponencial (100ms * 2 = 200ms -> 400ms -> etc.)
+                  basedOnPreviousValue: true # Aplica el multiplicador sobre el retraso inmediatamente anterior
             - name: CircuitBreaker
               args:
                 name: accountServiceCircuitBreaker
@@ -121,7 +123,7 @@ eureka:
     enabled: true
     # URL del Eureka Server
     service-url:
-      defaultZone: http://eureka-server:8761/eureka/
+      defaultZone: http://localhost:8761/eureka/
     # Registry fetch interval (seconds)
     registry-fetch-interval-seconds: 30
     # Instance preference
@@ -179,7 +181,41 @@ springdoc:
     # - name: inventory-service
     #   url: /inventory-service/v3/api-docs
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics # Expone el formato nativo para Prometheus
+  endpoint:
+    health:
+      show-details: always # Opcional: muestra detalles de salud en /actuator/health
+  metrics:
+    tags:
+      application: ${spring.application.name} # Añade una etiqueta con el nombre del Gateway a todas las métricas
+    distribution:
+      percentiles-histogram:
+        # Habilita histogramas para el timer de requests HTTP.
+        # Esto es lo que te permite calcular percentiles (p50, p95, p99)
+        # de latencia en Grafana usando histogram_quantile() en PromQL.
+        # Sin esto, solo tendrías promedios, que ocultan outliers.
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s
+  prometheus:
+    metrics:
+      export:
+        # Habilita explícitamente la exportación al formato Prometheus.
+        # (En versiones recientes de Spring Boot ya viene true por defecto
+        # con la dependencia en el classpath, pero es buena práctica
+        # dejarlo explícito para que quede documentado en el config)
+        enabled: true
+
+
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
     reactor.netty: DEBUG
+    # Activa los logs internos para ver el ciclo de vida del filtro de reintentos
+    org.springframework.cloud.gateway.filter.factory.RetryGatewayFilterFactory: TRACE
+    # Opcional: ver cómo Netty (el cliente interno) reintenta la conexión TCP
+    org.springframework.cloud.gateway.filter.NettyRoutingFilter: DEBUG
