@@ -268,7 +268,6 @@ pipeline {
         // STAGE 4: Empaquetar (genera el .jar ejecutable) y lo desempaqueta
         // -----------------------------------------------------------------
         stage('Package') {
-            agent any
             when {
                 expression {
                     return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
@@ -279,6 +278,12 @@ pipeline {
                     when {
                         expression { env.GATEWAY_CHANGED == 'true' }
                     }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
+                    }
                     steps {
                         package_SpringService(servicePath: 'gateway')
                     }
@@ -286,6 +291,12 @@ pipeline {
                 stage('eureka-server') {
                     when {
                         expression { env.EUREKA_CHANGED == 'true' }
+                    }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
                     }
                     steps {
                         package_SpringService(servicePath: 'eureka-server')
@@ -295,6 +306,12 @@ pipeline {
                     when {
                         expression { env.ORDER_CHANGED == 'true' }
                     }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
+                    }
                     steps {
                         package_SpringService(servicePath: 'order-service')
                     }
@@ -303,6 +320,12 @@ pipeline {
                     when {
                         expression { env.PRODUCTS_CHANGED == 'true' }
                     }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
+                    }
                     steps {
                         package_SpringService(servicePath: 'product-service')
                     }
@@ -310,6 +333,12 @@ pipeline {
                 stage('account-service') {
                     when {
                         expression { env.ACCOUNT_CHANGED == 'true' }
+                    }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
                     }
                     steps {
                         package_SpringService(servicePath: 'account-service')
@@ -341,7 +370,6 @@ pipeline {
         // STAGE 5: Construir imagen Docker
         // ---------------------------------------------------------
         stage('Docker Build') {
-            agent any
             when {
                 expression {
                     return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.CHANGES == 'true')
@@ -352,6 +380,12 @@ pipeline {
                     when {
                         expression { env.GATEWAY_CHANGED == 'true' }
                     }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
+                    }
                     steps {
                         build_DockerService(servicePath: 'gateway', imageName: "${IMAGE_NAME_GATEWAY}", buildNumber: "${IMAGE_TAG}")
                     }
@@ -359,6 +393,12 @@ pipeline {
                 stage('eureka-server') {
                     when {
                         expression { env.EUREKA_CHANGED == 'true' }
+                    }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
                     }
                     steps {
                         build_DockerService(servicePath: 'eureka-server', imageName: "${IMAGE_NAME_EUREKA}", buildNumber: "${IMAGE_TAG}")
@@ -368,6 +408,12 @@ pipeline {
                     when {
                         expression { env.ORDER_CHANGED == 'true' }
                     }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
+                    }
                     steps {
                         build_DockerService(servicePath: 'order-service', imageName: "${IMAGE_NAME_ORDER}", buildNumber: "${IMAGE_TAG}")
                     }
@@ -376,6 +422,12 @@ pipeline {
                     when {
                         expression { env.PRODUCTS_CHANGED == 'true' }
                     }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
+                    }
                     steps {
                         build_DockerService(servicePath: 'product-service', imageName: "${IMAGE_NAME_PRODUCT}", buildNumber: "${IMAGE_TAG}")
                     }
@@ -383,6 +435,12 @@ pipeline {
                 stage('account-service') {
                     when {
                         expression { env.ACCOUNT_CHANGED == 'true' }
+                    }
+                    agent {
+                        docker {
+                            image 'maven:3.9-eclipse-temurin-17'
+                            args '-v $HOME/.m2:/root/.m2'
+                        }
                     }
                     steps {
                         build_DockerService(servicePath: 'account-service', imageName: "${IMAGE_NAME_ACCOUNT}", buildNumber: "${IMAGE_TAG}")
