@@ -271,7 +271,7 @@ pipeline {
             agent any
             when {
                 expression {
-                    retun (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
                 }
             }
             steps {
@@ -302,7 +302,7 @@ pipeline {
             agent any
             when {
                 expression {
-                    retun (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
                 }
             }
             steps {
@@ -339,7 +339,7 @@ pipeline {
             //            }
             when {
                 expression {
-                    retun (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
+                    return (currentBuild.resultIsBetterOrEqualTo('SUCCESS') && env.NO_CHANGE != 'false')
                 }
             }
             steps {
